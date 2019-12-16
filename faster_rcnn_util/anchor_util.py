@@ -43,8 +43,8 @@ def make_anchors(base_anchor_size, anchor_scales, anchor_ratios, feature_height,
 
         box_sizes = tf.stack([w_scale, h_scale], axis=2)
         box_sizes = tf.reshape(box_sizes, [-1, 2])
-
-        anchors = tf.concat(values=[anchor_centers - 0.5*box_sizes, anchor_centers + 0.5*box_sizes], axis=1)
+        # anchor coordinator -> (left_up_x, left_up_y, right_down_x, right_down_y)
+        anchors = tf.concat(values=[anchor_centers-0.5*box_sizes, anchor_centers+0.5*box_sizes], axis=1)
 
         return anchors
 
