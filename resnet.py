@@ -13,7 +13,7 @@ from tensorflow.contrib.slim.python.slim.nets.resnet_v1 import resnet_v1_block
 
 
 class ResNet():
-    def __init__(self, scope_name, weight_decay=0.00004, batch_norm_decay=0.997, batch_norm_epsilon=1e-5,
+    def __init__(self, scope_name, weight_decay=0.0001, batch_norm_decay=0.997, batch_norm_epsilon=1e-5,
                  batch_norm_scale=True):
         self.scope_name = scope_name
         self.weight_decay=weight_decay
@@ -22,7 +22,7 @@ class ResNet():
         self.batch_norm_scale = batch_norm_scale
         self.fixed_block = 1
 
-    def resnet_arg_scope(self,is_training=True, weight_decay=0.00004, batch_norm_decay=0.997,
+    def resnet_arg_scope(self, is_training=True, weight_decay=0.0001, batch_norm_decay=0.997,
                          batch_norm_epsilon=1e-5, batch_norm_scale=True):
         '''
         In Default, do not use BN to train resnet, since batch_size is too small.
