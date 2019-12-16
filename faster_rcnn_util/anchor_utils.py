@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# @ File faster_anchor_util.py
-# @ Description : faster_rcnn config
+# @ File anchor_utils.py
+# @ Description :
 # @ Author alexchung
 # @ Time 16/12/2019 PM 15:03
 
