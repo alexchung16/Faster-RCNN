@@ -15,6 +15,8 @@ from Faster_RCNN.resnet import ResNet
 from Faster_RCNN.faster_rcnn_util.anchor_utils import make_anchors
 from Faster_RCNN.faster_rcnn_util import boxes_utils
 from Faster_RCNN.faster_rcnn_util import encode_and_decode
+from Faster_RCNN.faster_rcnn_util import show_box_in_tensor
+from Faster_RCNN.faster_rcnn_util.anchor_target_without_boxweight import anchor_target_layer
 
 
 class FasterRCNN():
@@ -58,8 +60,12 @@ class FasterRCNN():
                                     weights_initializer=cfgs.INITIALIZER, activation_fn=None, scope='rpn_cls_score')
         rpn_box_pred = slim.conv2d(rpn_conv_3x3, self.num_anchors * 4, [1, 1], stride=1, trainable=self.is_training,
                                    weights_initializer=cfgs.BBOX_INITIALIZER, activation_fn=None, scope='rpn_bbox_pred')
-        rpn_box_pred = tf.reshape(rpn_box_pred, [-1, 4]) #()
-        rpn_cls_score = tf.reshape(rpn_cls_score, [-1, 2])  #(background, object)
+        # (img_height * img_width * mum_anchor, 4)
+        # 4 => (t_center_x, t_center_y, t_width, t_height)
+        rpn_box_pred = tf.reshape(rpn_box_pred, [-1, 4])
+        # (img_height*img_width*mum_anchor, 2)
+        # 2 => (background_prob, object_prob)
+        rpn_cls_score = tf.reshape(rpn_cls_score, [-1, 2])
         rpn_cls_prob = slim.softmax(rpn_cls_score, scope='rpn_cls_prob')
         return rpn_box_pred, rpn_cls_prob
 
@@ -82,7 +88,7 @@ class FasterRCNN():
             post_nms_topN = cfgs.RPN_MAXIMUM_PROPOSAL_TEST
             nms_threshold = cfgs.RPN_NMS_IOU_THRESHOLD
 
-        cls_prob = rpn_cls_prob[:, 1]
+        cls_prob = rpn_cls_prob[:, 1] #(, 2) =>（negtive, postive）
 
         # step 1  decode boxes
         decode_boxes = encode_and_decode.decode_boxes(encoded_boxes=rpn_bbox_pred,
@@ -126,6 +132,9 @@ class FasterRCNN():
         feature_height = tf.cast(tf.shape(feature_cropped)[1], dtype=tf.float32)
         feature_width = tf.cast(tf.shape(feature_cropped)[2], dtype=tf.float32)
         # step make anchor
+        # reference anchor coordinate
+        # (img_height*img_width*mum_anchor, 4)
+        #++++++++++++++++++++++++++++++++++++generate anchors+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         anchors = make_anchors(base_anchor_size=cfgs.BASE_ANCHOR_SIZE_LIST[0],
                                anchor_scales=cfgs.ANCHOR_SCALES,
                                anchor_ratios=cfgs.ANCHOR_RATIOS,
@@ -135,11 +144,52 @@ class FasterRCNN():
                                name='make_anchors_forRPN')
 
         with tf.variable_scope('postprocess_RPN'):
-            rois, rois_scores = self.postprocess_rpn_proposals(rpn_bbox_pred=rpn_box_pred,
+            rois, roi_scores = self.postprocess_rpn_proposals(rpn_bbox_pred=rpn_box_pred,
                                                                rpn_cls_prob=rpn_cls_prob,
                                                                img_shape=img_shape,
                                                                anchors=anchors,
                                                                is_training=self.is_training)
+            # +++++++++++++++++++++++++++++++++++++add img summary++++++++++++++++++++++++++++++++++++++++++++++++++++
+            if self.is_training:
+                rois_in_img = show_box_in_tensor.draw_boxes_with_scores(img_batch=inputs_batch,
+                                                                        boxes=rois,
+                                                                        scores=roi_scores)
+                tf.summary.image('all_rpn_rois', rois_in_img)
+
+                score_gre_05 = tf.reshape(tf.where(tf.greater_equal(roi_scores, 0.5)), [-1])
+                score_gre_05_rois = tf.gather(rois, score_gre_05)
+                score_gre_05_score = tf.gather(roi_scores, score_gre_05)
+                score_gre_05_in_img = show_box_in_tensor.draw_boxes_with_scores(img_batch=inputs_batch,
+                                                                                boxes=score_gre_05_rois,
+                                                                                scores=score_gre_05_score)
+                tf.summary.image('score_greater_05_rois', score_gre_05_in_img)
+        #++++++++++++++++++++++++++++++++++++++++get rpn_lablel and rpn_bbox_target++++++++++++++++++++++++++++++++++++
+        if self.is_training:
+            with tf.variable_scope('sample_anchors_minibatch'):
+                rpn_labels, rpn_box_targets = tf.py_func(func=anchor_target_layer,
+                                                        inp=[gtboxes_batch, img_shape, anchors],
+                                                        Tout=[tf.float32, tf.float32])
+                rpn_bbox_targets = tf.reshape(rpn_box_targets, shape=(-1, 4))
+
+                rpn_labels = tf.cast(rpn_labels, dtype=tf.int32, name='to_int32')
+                rpn_labels = tf.reshape(rpn_labels, shape=[-1])
+
+            #++++++++++++++++++++++++++++++++++++++++++++add summary+++++++++++++++++++++++++++++++++++++++++++++++++++
+            rpn_cls_category = tf.argmax(rpn_cls_prob, axis=1)
+            # get positive and negative indices and ignore others where rpn label value equal to -1
+
+            kept_rpn_indices = tf.reshape(tf.where(tf.not_equal(rpn_labels, -1)), shape=[-1])
+            rpn_cls_category = tf.gather(rpn_cls_category, indices=kept_rpn_indices)
+            rpn_labels = tf.cast(tf.gather(rpn_labels, indices=kept_rpn_indices), dtype=tf.int64)
+            # evaluate function
+            acc = tf.cast(tf.reduce_mean(tf.equal(rpn_cls_category, rpn_labels)), dtype=tf.float32)
+            tf.summary.scalar('ACC/rpn_accuracy', acc)
+
+
+
+
+
+
 
 
     def faster_rcnn_base(self):
