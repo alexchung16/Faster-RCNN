@@ -66,11 +66,24 @@ def anchor_target_layer(gt_boxes, img_shape, all_anchors, is_restrict=False):
     if cfgs.TRAIN_RPN_CLOOBER_POSITIVES:
         labels[max_overlaps < cfgs.RPN_IOU_NEGATIVE_THRESHOLD] = 0
     # reference paper(Faster RCNN) balance positive and negative ratio
-    num_bg = int(cfgs.RPN_MINIBATCH_SIZE * cfgs.RPN_POSITIVE_RATE)
-    bg_indices = np.where(labels == 1)[0]
-    if len(bg_indices) > num_bg:
-        disable_indices = np.random.choice(bg_indices, size=(len(bg_indices)-num_bg), replace=False)
+
+    # num foreground of RPN
+    num_fg = int(cfgs.RPN_MINIBATCH_SIZE * cfgs.RPN_POSITIVE_RATE)
+    fg_indices = np.where(labels == 1)[0]
+    if len(fg_indices) > num_fg:
+        disable_indices = np.random.choice(fg_indices, size=(len(fg_indices)-num_fg), replace=False)
         labels[disable_indices] = -1
+
+     # num backgound of RPN
+    num_bg = cfgs.RPN_MINIBATCH_SIZE - np.sum(labels==1)
+    if is_restrict:
+        num_bg = max(num_bg, num_fg * 1.5)
+
+    bg_indices = np.where(labels == 0)[0]
+    if len(bg_indices) > num_bg:
+        disable_indices = np.random.choice(bg_indices, size=(len(bg_indices) - num_bg), replace=False)
+        labels[disable_indices] = -1
+
 
     bbox_targets = compute_target(anchors, gt_boxes[argmax_overlaps, :])
 
