@@ -11,7 +11,7 @@ import numpy as np
 
 def decode_boxes(encoded_boxes, reference_boxes, scale_factors=None):
     '''
-
+    reference the paper (Faster RCNN) formula 6
     :param encoded_boxes:[N, 4]
     :param reference_boxes: [N, 4] .
     :param scale_factors: use for scale.
@@ -54,7 +54,7 @@ def decode_boxes(encoded_boxes, reference_boxes, scale_factors=None):
 
 def encode_boxes(unencode_boxes, reference_boxes, scale_factors=None):
     '''
-
+    reference the paper (Faster RCNN) formula 6
     :param unencode_boxes: [-1, 4]
     :param reference_boxes: [-1, 4]
     :return: encode_boxes [-1, 4]
