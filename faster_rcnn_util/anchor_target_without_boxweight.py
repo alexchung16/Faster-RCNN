@@ -3,7 +3,7 @@
 #--------------------------------------------------
 # @ File       : anchor_target_without_boxweight.py
 # @ Description:  
-# @ Author     : Alex Chung
+# @ Author     : Ross Girshick and Alex Chung
 # @ Contact    : yonganzhong@outlook.com
 # @ License    : Copyright (c) 2017-2018
 # @ Time       : 2019/12/17 PM 14:07
@@ -121,11 +121,15 @@ def unmap_anchor(data, count, indices, fill=0):
 
 def compute_target(ex_rois, gt_rois):
     """
-    compute bound-box regression targets for an image
+    Compute bound-box regression targets for an image
     :param ex_rois:
     :param gt_rois:
     :return:
     """
+    assert ex_rois.shape[0] == gt_rois.shape[0]
+    assert ex_rois.shape[1] == 4
+    assert gt_rois.shape[1] == 4
+
     target = encode_and_decode.encode_boxes(unencode_boxes=gt_rois,
                                             reference_boxes=ex_rois,
                                             scale_factors=cfgs.ANCHOR_SCALE_FACTORS)
