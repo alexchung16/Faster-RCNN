@@ -1,9 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# @ File DenseNet_resnet.py
-# @ Description :
-# @ Author alexchung
-# @ Time 16/12/2019 AM 09:26
+#------------------------------------------------------
+# @ File       : resnet.py
+# @ Description:
+# @ Author     : Alex Chung
+# @ Contact    : yonganzhong@outlook.com
+# @ License    : Copyright (c) 2017-2018
+# @ Time       : 2019/12/16 AM 09:26
+# @ Software   : PyCharm
+#-------------------------------------------------------
 
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
