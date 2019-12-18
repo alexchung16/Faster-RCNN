@@ -35,17 +35,43 @@ def proposal_target_layer(rpn_roi, gt_boxes):
     # number of foreground rois per image
     fg_rois_per_image = np.around(cfgs.FAST_RCNN_POSITIVE_RATE * rois_per_image)
 
+    # Sample rois with classification labels and bounding box regression
+    labels, rois, bbox_targets = sample_rois(all_rois=all_rois,
+                                             gt_boxes=gt_boxes,
+                                             fg_rois_per_image=fg_rois_per_image,
+                                             rois_per_image=rois_per_image,
+                                             num_classes=cfgs.CLASS_NUM + 1)
+
+    rois = rois.reshape(-1, 4)
+    labels = labels.reshape(-1)
+    bbox_targets = bbox_targets.reshape(-1, (cfgs.CLASS_NUM+1) * 4)
+
+    return rois, labels, bbox_targets
+
 def get_bbox_regression_labels(bbox_target_data, num_classes):
     """
-
+    Bounding-box regression targets (bbox_target_data) are stored in a
+    compact form N x (class, tx, ty, tw, th)
+    This function expands those targets into the 4-of-4*K representation used
+    by the network (i.e. only one class has non-zero targets).
     :param bbox_target_data:
     :param num_classes:
     :return:
+        bbox_target (ndarray): N x 4K blob of regression targets
     """
+    classes = bbox_target_data[:, 0]
+    bbox_targets = np.zeros(shape=(classes.size, 4 * num_classes), dtype=np.float)
+    indices = np.where(classes > 0)[0]
+    for ind in indices:
+        cls = classes[ind]
+        start = int(4 * cls)
+        end = start + 4
+        bbox_targets[ind, start:end] = bbox_target_data[ind, 1:]
+
+    return bbox_targets
 
 
-
-def compute_target(ex_rois, gt_rois, labels):
+def compute_targets(ex_rois, gt_rois, labels):
     """
     Compute bounding-box regression targets for an image.
     :param ex_rois:
@@ -60,10 +86,7 @@ def compute_target(ex_rois, gt_rois, labels):
     targets = encode_and_decode.encode_boxes(unencode_boxes=gt_rois,
                                              reference_boxes=ex_rois,
                                              scale_factors=cfgs.ROI_SCALE_FACTORS)
-
     return np.hstack((labels[:, np.newaxis], targets)).astype(np.float32, copy=False)
-
-
 
 
 def sample_rois(all_rois, gt_boxes, fg_rois_per_image, rois_per_image, num_classes):
@@ -114,8 +137,24 @@ def sample_rois(all_rois, gt_boxes, fg_rois_per_image, rois_per_image, num_class
 
     # Clamp labels for the background RoIs to 0
     # positive -> 1 , negative -> 0
-    labels[int(fg_rois_per_this_image):] = 0
+    labels[int(fg_rois_per_this_image):] = 0  # [i+1 for i in range(cfgs.CLASS_NUM)] + [0]
     rois = all_rois[keep_inds]
+
+    bbox_target_data = compute_targets(ex_rois=rois,
+                                       gt_rois=gt_boxes[gt_assignment[keep_inds], :-1], # bbox
+                                       labels=labels)  # labels
+    bbox_targets = get_bbox_regression_labels(bbox_target_data, num_classes) # (rois.shape[0], num_classes)
+
+    return labels, rois, bbox_targets
+
+
+if __name__ == "__main__":
+    bbox = np.random.rand(6, 5)
+    classes_num = 20
+    target_box = get_bbox_regression_labels(bbox, classes_num)
+    print(target_box)
+    print([0]+[i+1 for i in range(20)])
+
 
 
 
