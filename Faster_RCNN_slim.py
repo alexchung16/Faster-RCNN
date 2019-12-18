@@ -64,8 +64,8 @@ class FasterRCNN():
         # (img_height*img_width*mum_anchor, 2)
         # 2 => (background_prob, object_prob)
         rpn_cls_score = tf.reshape(rpn_cls_score, [-1, 2])
-        rpn_cls_prob = slim.softmax(rpn_cls_score, scope='rpn_cls_prob')
-        return rpn_box_pred, rpn_cls_prob
+
+        return rpn_box_pred, rpn_cls_score
 
     def postprocess_rpn_proposals(self, rpn_bbox_pred, rpn_cls_prob, img_shape, anchors, is_training):
         """
@@ -109,9 +109,9 @@ class FasterRCNN():
         final_probs = tf.gather(cls_prob, keep_indices)
         return final_boxes, final_probs
 
-    def postprocess_fastrcnn(self, rois, bbox_pred, scores, img_shape):
+    def postprocess_fastrcnn(self, rois, bbox_ppred, scores, img_shape):
         '''
-
+        generate target box and label
         :param rois:[-1, 4]
         :param bbox_ppred: [-1, (cfgs.Class_num+1) * 4]
         :param scores: [-1, cfgs.Class_num + 1]
@@ -121,8 +121,8 @@ class FasterRCNN():
         with tf.name_scope('postprocess_fastrcnn'):
             rois = tf.stop_gradient(rois)
             scores = tf.stop_gradient(scores)
-            bbox_ppred = tf.reshape(bbox_pred, [-1, cfgs.CLASS_NUM + 1, 4])
-            bbox_ppred = tf.stop_gradient(bbox_pred)
+            bbox_ppred = tf.reshape(bbox_ppred, [-1, cfgs.CLASS_NUM + 1, 4])
+            bbox_ppred = tf.stop_gradient(bbox_ppred)
 
             bbox_pred_list = tf.unstack(bbox_ppred, axis=1)
             score_list = tf.unstack(scores, axis=1)
@@ -130,14 +130,17 @@ class FasterRCNN():
             allclasses_boxes = []
             allclasses_scores = []
             categories = []
-            for i in range(1, cfgs.CLASS_NUM+1):
-
+            # remove background(index_num=0) just generate object boxes and label
+            for i in range(1, cfgs.CLASS_NUM + 1):
                 # 1. decode boxes in each class
                 tmp_encoded_box = bbox_pred_list[i]
                 tmp_score = score_list[i]
                 tmp_decoded_boxes = encode_and_decode.decode_boxes(encoded_boxes=tmp_encoded_box,
                                                                    reference_boxes=rois,
                                                                    scale_factors=cfgs.ROI_SCALE_FACTORS)
+                # tmp_decoded_boxes = encode_and_decode.decode_boxes(boxes=rois,
+                #                                                    deltas=tmp_encoded_box,
+                #                                                    scale_factor=cfgs.ROI_SCALE_FACTORS)
 
                 # 2. clip to img boundaries
                 tmp_decoded_boxes = boxes_utils.clip_boxes_to_img_boundaries(decode_boxes=tmp_decoded_boxes,
@@ -204,16 +207,17 @@ class FasterRCNN():
                                                             crop_size=[cfgs.ROI_SIZE, cfgs.ROI_SIZE],
                                                             name='CROP_AND_RESIZE'
                                                             )
-            # (cfgs.ROI_SIZE, cfgs.ROI_SIZE) => cfgs.FAST_RCNN_MINIBATCH_SIZE x 14 x14
+            # (cfgs.ROI_SIZE, cfgs.ROI_SIZE) =>  cfgs.FAST_RCNN_MINIBATCH_SIZE x 14 x 14 x 1024
             rois_features = slim.max_pool2d(cropped_roi_features,
                                            [cfgs.ROI_POOL_KERNEL_SIZE, cfgs.ROI_POOL_KERNEL_SIZE],
                                            stride=cfgs.ROI_POOL_KERNEL_SIZE)
-            # cfgs.FAST_RCNN_MINIBATCH x 7 x 7
+            # cfgs.FAST_RCNN_MINIBATCH_SIZE x 7 x 7 x 1024
             return rois_features
 
     def build_fastrcnn(self, feature_crop, rois, img_shape):
         """
         build fastrcnn
+        !batch_size =  cfgs.FAST_RCNN_MINIBATCH_SIZE!
         :param feature_ro_crop: feature map
         :param rois:
         :param img_shape:
@@ -225,6 +229,8 @@ class FasterRCNN():
                 pooled_feature = self.roi_pooling(feature_maps=feature_crop, rois=rois, img_shape=img_shape)
             # step 6 Inference rois in Fast-RCNN to obtain fc_flatten features
             if self.base_network_name.startswith('resnet'):
+
+                # cfgs.FAST_RCNN_MINIBATCH_SIZE x 2048
                 fc_flatten = self.resnet.restnet_head(inputs=pooled_feature,
                                                       is_training=self.is_training,
                                                       scope_name=self.base_network_name)
@@ -233,6 +239,7 @@ class FasterRCNN():
 
             # cls and reg in Fast-RCNN
             with slim.arg_scope([slim.fully_connected], weight_regularizer=slim.l2_regularizer(self.weight_decay)):
+                # cfgs.FAST_RCNN_MINIBATCH_SIZE x cfgs.CLASS_NUM + 1
                 cls_score = slim.fully_connected(fc_flatten,
                                                  num_outputs=cfgs.CLASS_NUM + 1,
                                                  weights_initializer=slim.variance_scaling_initializer(factor=1.0,
@@ -241,7 +248,7 @@ class FasterRCNN():
                                                  activation_fn=None,
                                                  trainable=self.is_training,
                                                  scope='cls_fc')
-
+                # cfgs.FAST_RCNN_MINIBATCH_SIZE x ((cfgs.CLASS_NUM + 1) * 4)
                 bbox_pred = slim.fully_connected(fc_flatten,
                                                  num_outputs=(cfgs.CLASS_NUM + 1) * 4,
                                                  weights_initializer=slim.variance_scaling_initializer(factor=1.0,
@@ -255,6 +262,10 @@ class FasterRCNN():
                 bbox_pred = tf.reshape(bbox_pred, [-1, 4*(cfgs.CLASS_NUM+1)])
 
                 return bbox_pred, cls_score
+
+    def build_loss(self, rpn_box_pred, rpn_bbox_targets, rpn_cls_score, rpn_labels, bbox_pred, bbox_targets,
+                   cls_score, labels):
+        pass
 
     def faster_rcnn(self, inputs_batch, gtboxes_batch):
         """
@@ -272,7 +283,8 @@ class FasterRCNN():
         # step 1 build base network
         feature_cropped = self.build_base_network(inputs_batch)
         # step 2 build rpn
-        rpn_box_pred, rpn_cls_prob = self.build_rpn_network(feature_cropped)
+        rpn_box_pred, rpn_cls_score = self.build_rpn_network(feature_cropped)
+        rpn_cls_prob = slim.softmax(rpn_cls_score, scope='rpn_cls_prob')
         # step 3 make anchor
         feature_height = tf.cast(tf.shape(feature_cropped)[1], dtype=tf.float32)
         feature_width = tf.cast(tf.shape(feature_cropped)[2], dtype=tf.float32)
@@ -319,7 +331,7 @@ class FasterRCNN():
                 rpn_labels = tf.cast(rpn_labels, dtype=tf.int32, name='to_int32')
                 rpn_labels = tf.reshape(rpn_labels, shape=[-1])
 
-            #++++++++++++++++++++++++++++++++++++++++++++add summary+++++++++++++++++++++++++++++++++++++++++++++++++++
+            #+++++++++++++++++++++++++++++++++++generate target boxes and labels++++++++++++++++++++++++++++++++++++++++
             rpn_cls_category = tf.argmax(rpn_cls_prob, axis=1)
             # get positive and negative indices and ignore others where rpn label value equal to -1
             kept_rpn_indices = tf.reshape(tf.where(tf.not_equal(rpn_labels, -1)), shape=[-1])
@@ -357,10 +369,24 @@ class FasterRCNN():
 
         # step 6 postprocess fastrcnn
         if not self.is_training:
-            return self.postprocess_fastrcnn(rois, bbox_pred=bbox_pred, scores=cls_prob, img_shape=img_shape)
+            return self.postprocess_fastrcnn(rois, bbox_ppred=bbox_pred, scores=cls_prob, img_shape=img_shape)
         else:
             '''
             when train, we need to build loss
             '''
+            loss_dict = self.build_loss(rpn_box_pred=rpn_box_pred,
+                                        rpn_bbox_targets=rpn_bbox_targets,
+                                        rpn_cls_score=rpn_cls_score,
+                                        rpn_labels=rpn_labels,
+                                        bbox_pred=bbox_pred,
+                                        bbox_targets=bbox_targets,
+                                        cls_score=cls_score,
+                                        labels=labels)
+
+            final_bbox, final_scores, final_category = self.postprocess_fastrcnn(rois=rois,
+                                                                                 bbox_ppred=bbox_pred,
+                                                                                 scores=cls_prob,
+                                                                                 img_shape=img_shape)
+            return final_bbox, final_scores, final_category, loss_dict
 
 
