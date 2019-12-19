@@ -18,6 +18,7 @@ from Faster_RCNN.faster_rcnn_util import encode_and_decode
 from Faster_RCNN.faster_rcnn_util import show_box_in_tensor
 from Faster_RCNN.faster_rcnn_util.anchor_target_without_boxweight import anchor_target_layer
 from Faster_RCNN.faster_rcnn_util.proposal_target_layer import proposal_target_layer
+from Faster_RCNN.faster_rcnn_util import losses
 
 
 class FasterRCNN():
@@ -36,6 +37,13 @@ class FasterRCNN():
         self.resnet = ResNet(scope_name=self.base_network_name, weight_decay=weight_decay,
                              batch_norm_decay=batch_norm_decay, batch_norm_epsilon=batch_norm_epsilon,
                              batch_norm_scale=batch_norm_scale)
+
+        # x [img_height, img_height, img_width]
+        self.raw_input_data = tf.compat.v1.placeholder(tf.float32, shape=[None, None, 3], name="input_images")
+        # y [None, upper_left_x, upper_left_y, down_right_x, down_right_y]
+        self.raw_input_label = tf.compat.v1.placeholder(tf.float32, shape=[None, 5], name="gtbox_label")
+        # # is_training flag
+        # self.is_training = tf.compat.v1.placeholder_with_default(input=False, shape=(), name='is_training')
 
     def build_base_network(self, input_img_batch):
         if self.base_network_name.startswith('resnet_v1'):
@@ -265,7 +273,74 @@ class FasterRCNN():
 
     def build_loss(self, rpn_box_pred, rpn_bbox_targets, rpn_cls_score, rpn_labels, bbox_pred, bbox_targets,
                    cls_score, labels):
-        pass
+        """
+        loss function
+        :param rpn_box_pred: [-1, 4]
+        :param rpn_bbox_targets: [-1, 4]
+        :param rpn_cls_score: [-1]
+        :param rpn_labels: [-1]
+        :param bbox_pred: [-1, 4*(cls_num+1)]
+        :param bbox_targets: [-1, 4*(cls_num+1)]
+        :param cls_score: [-1, cls_num+1]
+        :param labels: [-1]
+        :return:
+        :return:
+        """
+        with tf.variable_scope('build_loss') as sc:
+            with tf.variable_scope('rpn_loss'):
+
+                # get bbox losses(localization loss)
+                rpn_bbox_loss = losses.smooth_l1_loss_rpn(bbox_pred=rpn_box_pred,
+                                                            bbox_targets=rpn_bbox_targets,
+                                                            labels=rpn_labels,
+                                                            sigma=cfgs.RPN_SIGMA)
+                # select foreground and background
+                rpn_select = tf.reshape(tf.where(tf.not_equal(rpn_labels, -1)), shape=[-1])
+                rpn_cls_score = tf.reshape(tf.gather(rpn_cls_score, rpn_select), shape=[-1, 2])
+                rpn_labels = tf.reshape(tf.gather(rpn_labels, rpn_select), shape=[-1])
+
+                rpn_cls_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(features=rpn_cls_score,
+                                                                                              labels=rpn_labels))
+                #------------------------------ RPN classification and localization loss-------------------------------
+                rpn_cls_loss = rpn_cls_loss * cfgs.RPN_CLASSIFICATION_LOSS_WEIGHT
+                rpn_bbox_loss = rpn_bbox_loss * cfgs.RPN_LOCATION_LOSS_WEIGHT
+
+            with tf.variable_scope('FastRCNN_loss'):
+                if not cfgs.FAST_RCNN_MINIBATCH_SIZE == -1:
+                    bbox_loss = losses.smooth_l1_loss_rcnn(bbox_pred=bbox_pred,
+                                                           bbox_targets=bbox_targets,
+                                                           label=labels,
+                                                           num_classes=cfgs.CLASS_NUM + 1,
+                                                           sigma=cfgs.FASTRCNN_SIGMA)
+                    cls_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+                        logits=cls_score,
+                        labels=labels))  # because already sample before
+
+                else:
+                    ''' 
+                    applying OHEM here
+                    '''
+                    print(20 * "@@")
+                    print("@@" + 10 * " " + "TRAIN WITH OHEM ...")
+                    print(20 * "@@")
+                    cls_loss, bbox_loss = losses.sum_ohem_loss(cls_score=cls_score,
+                                                               labels=labels,
+                                                               bbox_targets=bbox_targets,
+                                                               bbox_pred=bbox_pred,
+                                                               num_ohem_samples=256,
+                                                               num_classes=cfgs.CLASS_NUM + 1)
+
+                # ----------------------- Faster RCNN classification and localization loss------------------------------
+                cls_loss = cls_loss * cfgs.FAST_RCNN_CLASSIFICATION_LOSS_WEIGHT
+                bbox_loss = bbox_loss * cfgs.FAST_RCNN_LOCATION_LOSS_WEIGHT
+
+            loss_dict = {
+                'rpn_cls_loss': rpn_cls_loss,
+                'rpn_loc_loss': rpn_bbox_loss,
+                'fastrcnn_cls_loss': cls_loss,
+                'fastrcnn_loc_loss': bbox_loss
+            }
+        return loss_dict
 
     def faster_rcnn(self, inputs_batch, gtboxes_batch):
         """
@@ -388,5 +463,51 @@ class FasterRCNN():
                                                                                  scores=cls_prob,
                                                                                  img_shape=img_shape)
             return final_bbox, final_scores, final_category, loss_dict
+
+    def get_gradients(self, optimizer, loss):
+        """
+        compute gradient
+        :param optimizer:
+        :param total_loss:
+        :return:
+        """
+        return optimizer.compute_gradients(loss)
+
+    def enlarge_gradients_for_bias(self, gradients):
+        """
+
+        :param gradients:
+        :return:
+        """
+        final_gradients = []
+        with tf.variable_scope("Gradient_Mult") as scope:
+            for grad, var in gradients:
+                scale = 1.0
+                if cfgs.MUTILPY_BIAS_GRADIENT and './biases' in var.name:
+                    scale = scale * cfgs.MUTILPY_BIAS_GRADIENT
+                if not np.allclose(scale, 1.0):
+                    grad = tf.multiply(grad, scale)
+                final_gradients.append((grad, var))
+        return final_gradients
+
+    def get_restore(self, pretrain_model_dir, is_pretrain=False):
+        """
+        restore pretrain weight
+        :param pretrain_model_dir:
+        :param is_pretrain:
+        :return:
+        """
+        if is_pretrain:
+            # restore weight of base net(resnet_50, resnet_v1_101) and rpn_net
+            faster_rcnn_dir = os.path.join(pretrain_model_dir, 'faster_rcnn')
+        else:
+            # restore only base net weight
+            base_net_dir = os.path.join(pretrain_model_dir, self.base_network_name)
+
+
+
+
+
+
 
 
