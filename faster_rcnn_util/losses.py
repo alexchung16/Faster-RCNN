@@ -92,6 +92,58 @@ def smooth_l1_loss_rcnn(bbox_pred, bbox_targets, label, num_classes, sigma=1.0):
     return bbox_loss
 
 
+def sum_ohem_loss(cls_score, labels, bbox_pred, bbox_targets, num_classes, num_ohem_samples=256, sigma=1.0):
+    """
+
+    :param cls_score: [-1, classes_num+1]
+    :param label: [-1]
+    :param bbox_pred: [-1, 4*(classes_num+1)]
+    :param bbox_targets: [-1, 4*(classes_num+1)]
+    :param num_ohem_samples: 256 by default
+    :param num_classes: classes_num+1
+    :param sigma:
+    :return:
+    """
+
+    # classification loss
+    cls_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=cls_score, labels=labels)
+
+    # select object indices
+    outside_mask = tf.stop_gradient(tf.cast(tf.greater(labels, 0), dtype=tf.float32))
+    bbox_pred = tf.reshape(bbox_pred, shape=[-1, num_classes, 4])
+    bbox_targets = tf.reshape(bbox_targets, shape=[-1, num_classes, 4])
+
+    value = smooth_l1_loss_base(bbox_pred,
+                                bbox_targets,
+                                sigma=sigma)
+    value = tf.reduce_sum(value, axis=2)
+    value = tf.reshape(value, shape=[-1, num_classes])
+
+    inside_mask = tf.one_hot(tf.cast(tf.reshape(labels, shape=[-1, 1]), dtype=tf.float32),
+                             depth=num_classes,
+                             axis=1)
+    inside_mask = tf.stop_gradient(tf.cast(tf.reshape(inside_mask, shape=[-1, num_classes]), dtype=tf.float32))
+
+    # localization loss
+    loc_loss = tf.reduce_sum(value*inside_mask, axis=1) * outside_mask
+
+    # sum loss
+    sum_loss = cls_loss + loc_loss
+
+    num_ohem_samples = tf.stop_gradient(tf.minimum(num_ohem_samples, tf.shape(sum_loss)[0]))
+    _, top_k_indices = tf.nn.top_k(sum_loss, k=num_ohem_samples)
+
+    cls_loss_ohem = tf.gather(cls_loss, top_k_indices)
+    cls_loss_ohem = tf.reduce_mean(cls_loss_ohem)
+
+    loc_loss_ohem = tf.gather(loc_loss, top_k_indices)
+    normalizer = tf.to_float(num_ohem_samples)
+    loc_loss_ohem = tf.reduce_sum(loc_loss_ohem) / normalizer
+
+    return cls_loss_ohem, loc_loss_ohem
+
+
+
 
 
 
