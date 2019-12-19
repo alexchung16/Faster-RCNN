@@ -34,7 +34,7 @@ def smooth_l1_loss_base(bbox_pred, bbox_target, sigma=1.0):
 
     return loss_box
 
-def smooth_l1_loss_rpn(bbox_pred, bbox_targets, label, sigma=1.0):
+def smooth_l1_loss_rpn(bbox_pred, bbox_targets, labels, sigma=1.0):
     """
     rpn bbbox loss reference(Faster RCNN) formula 1
     :param bbox_pred: [-1, 4]
@@ -45,12 +45,12 @@ def smooth_l1_loss_rpn(bbox_pred, bbox_targets, label, sigma=1.0):
     """
     value = smooth_l1_loss_base(bbox_pred, bbox_targets, sigma=sigma)
     value = tf.reduce_mean(value, axis=1)
-    rpn_select = tf.where(tf.greater(label, 0)) # remove back_ground
+    rpn_select = tf.where(tf.greater(labels, 0)) # select foreground
 
     select_value = tf.gather(value, rpn_select)
 
     non_ignored_mask = tf.stop_gradient(
-        1.0 - tf.cast(tf.equal(label, -1), dtype=tf.float32) # positive is 1.0 other is 0.0
+        1.0 - tf.cast(tf.equal(labels, -1), dtype=tf.float32) # positive is 1.0 other is 0.0
     )
 
     bbox_loss = tf.reduce_sum(select_value) / tf.maximum(1.0, tf.reduce_sum(non_ignored_mask))
