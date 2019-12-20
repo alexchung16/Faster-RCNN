@@ -62,18 +62,22 @@ class FasterRCNN():
                                       weights_initializer=cfgs.INITIALIZER, activation_fn=tf.nn.relu,
                                       trainable=self.is_training, scope='rpn_conv/3x3')
 
-        rpn_cls_score = slim.conv2d(rpn_conv_3x3, self.num_anchors * 2, [1, 1], stride=1, trainable=self.is_training,
-                                    weights_initializer=cfgs.INITIALIZER, activation_fn=None, scope='rpn_cls_score')
-        rpn_box_pred = slim.conv2d(rpn_conv_3x3, self.num_anchors * 4, [1, 1], stride=1, trainable=self.is_training,
-                                   weights_initializer=cfgs.BBOX_INITIALIZER, activation_fn=None, scope='rpn_bbox_pred')
-        # (img_height * img_width * mum_anchor, 4)
-        # 4 => (t_center_x, t_center_y, t_width, t_height)
-        rpn_box_pred = tf.reshape(rpn_box_pred, [-1, 4])
-        # (img_height*img_width*mum_anchor, 2)
-        # 2 => (background_prob, object_prob)
-        rpn_cls_score = tf.reshape(rpn_cls_score, [-1, 2])
+            # (num_anchors * 2, img_height, img_width)
+            rpn_cls_score = slim.conv2d(rpn_conv_3x3, num_outputs=self.num_anchors * 2, kernel_size=[1, 1], stride=1,
+                                        trainable=self.is_training, weights_initializer=cfgs.INITIALIZER,
+                                        activation_fn=None, scope='rpn_cls_score')
+            # ((num_anchors * 4, img_height, img_width))
+            rpn_box_pred = slim.conv2d(rpn_conv_3x3, num_outputs=self.num_anchors * 4, kernel_size=[1, 1],
+                                       stride=1, trainable=self.is_training, weights_initializer=cfgs.BBOX_INITIALIZER,
+                                       activation_fn=None, scope='rpn_bbox_pred')
+            # (img_height * img_width * mum_anchor, 4)
+            # 4 => (t_center_x, t_center_y, t_width, t_height)
+            rpn_box_pred = tf.reshape(rpn_box_pred, [-1, 4])
+            # (img_height*img_width*mum_anchor, 2)
+            # 2 => (background_prob, object_prob)
+            rpn_cls_score = tf.reshape(rpn_cls_score, [-1, 2])
 
-        return rpn_box_pred, rpn_cls_score
+            return rpn_box_pred, rpn_cls_score
 
     def postprocess_rpn_proposals(self, rpn_bbox_pred, rpn_cls_prob, img_shape, anchors, is_training):
         """
@@ -398,9 +402,9 @@ class FasterRCNN():
         #++++++++++++++++++++++++++++++++++++++++get rpn_lablel and rpn_bbox_target++++++++++++++++++++++++++++++++++++
         if self.is_training:
             with tf.variable_scope('sample_anchors_minibatch'):
-                rpn_labels, rpn_box_targets = tf.py_func(func=anchor_target_layer,
-                                                        inp=[gtboxes_batch, img_shape, anchors],
-                                                        Tout=[tf.float32, tf.float32])
+                rpn_labels, rpn_box_targets = tf.py_func(anchor_target_layer,
+                                                        [gtboxes_batch, img_shape, anchors],
+                                                        [tf.float32, tf.float32])
                 rpn_bbox_targets = tf.reshape(rpn_box_targets, shape=(-1, 4))
 
                 rpn_labels = tf.cast(rpn_labels, dtype=tf.int32, name='to_int32')
@@ -437,7 +441,7 @@ class FasterRCNN():
 
         #----------------------------------------------add smry---------------------------------------------------------
         if self.is_training:
-            cls_category = tf.argmax(cls_prob)
+            cls_category = tf.argmax(cls_prob, axis=1)
             cls_labels = tf.cast(labels, dtype=tf.int64)
             fast_acc = tf.reduce_mean(tf.cast(tf.equal(cls_category, cls_labels), dtype=tf.float32))
             tf.summary.scalar('ACC/fast_acc', fast_acc)
