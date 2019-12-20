@@ -115,6 +115,33 @@ class ResNet():
         return net_flatten
 
 
+if __name__ == "__main__":
+    import os
+    pretrain_model_dir = '/home/alex/Documents/pretraing_model/faster_rcnn/resnet_v1_101'
+    pretrain_model_path = os.path.join(pretrain_model_dir, 'resnet_v1_101.ckpt')
+
+    image_bath = tf.random_normal(shape=(1, 224, 224, 3))
+    resnet_101 = ResNet(scope_name='resnet_v1_101').resnet_base(image_bath, is_training=True)
+
+    init_op = tf.group(
+        tf.global_variables_initializer(),
+        tf.local_variables_initializer()
+    )
+    with tf.Session() as sess:
+        sess.run(init_op)
+
+        model_variables = slim.get_model_variables()
+        for var in model_variables:
+            print(var.name, var.shape)
+        restorer = tf.train.Saver()
+        restorer.restore(sess, save_path=pretrain_model_path)
+        print(sess.run('resnet_v1_101/block3/unit_23/bottleneck_v1/conv3/weights:0'))
+
+
+
+
+
+
 
 
 
