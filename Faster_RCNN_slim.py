@@ -513,7 +513,7 @@ class FasterRCNN():
                 restorer = tf.train.Saver()
             checkpoint_path = tf.train.latest_checkpoint(faster_rcnn_dir)
 
-        # restore only base net weight
+        # restore variable weight only from base_net(resnet_v1_50, resnet_v1_101)
         else:
             ckpt_var_dict = {}
             for var in model_variables:
@@ -527,6 +527,7 @@ class FasterRCNN():
 
             restorer = tf.train.Saver(restore_variables)
             checkpoint_path = os.path.join(base_net_dir, self.base_network_name + '.ckpt')
+            print("restore from pretrained_weighs in IMAGE_NET")
 
         return restorer, checkpoint_path
 
