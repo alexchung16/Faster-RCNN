@@ -45,9 +45,9 @@ class FasterRCNN():
         # # is_training flag
         # self.is_training = tf.compat.v1.placeholder_with_default(input=False, shape=(), name='is_training')
 
-    def build_base_network(self, input_img_batch):
+    def build_base_network(self, inputs_batch):
         if self.base_network_name.startswith('resnet_v1'):
-            return self.resnet.resnet_base(input_img_batch, is_training=self.is_training)
+            return self.resnet.resnet_base(inputs_batch, is_training=self.is_training)
         else:
             raise ValueError('Sry, we only support resnet_50 or resnet_101')
 
@@ -104,13 +104,13 @@ class FasterRCNN():
         decode_boxes = boxes_utils.clip_boxes_to_img_boundaries(decode_boxes, img_shape=img_shape)
         # step 3 get top N to NMS
         if pre_nms_topN > 0:
-            pre_nms_topN = tf.minimum(pre_nms_topN, tf.shape(decode_boxes)[0], name='minimum boxes')
+            pre_nms_topN = tf.minimum(pre_nms_topN, tf.shape(decode_boxes)[0], name='minimum_boxes')
             cls_prob, top_k_indices = tf.nn.top_k(cls_prob, k=pre_nms_topN)
             decode_boxes = tf.gather(params=decode_boxes, indices=top_k_indices)
 
         # step 4 NMS(Non Max Suppression)
         keep_indices = tf.image.non_max_suppression(boxes=decode_boxes,
-                                                    score=cls_prob,
+                                                    scores=cls_prob,
                                                     max_output_size=post_nms_topN,
                                                     iou_threshold=nms_threshold)
         final_boxes = tf.gather(decode_boxes, keep_indices)
@@ -246,7 +246,7 @@ class FasterRCNN():
                 raise NotImplementedError('only support resnet_50 and resnet_101')
 
             # cls and reg in Fast-RCNN
-            with slim.arg_scope([slim.fully_connected], weight_regularizer=slim.l2_regularizer(self.weight_decay)):
+            with slim.arg_scope([slim.fully_connected], weights_regularizer=slim.l2_regularizer(self.weight_decay)):
                 # cfgs.FAST_RCNN_MINIBATCH_SIZE x cfgs.CLASS_NUM + 1
                 cls_score = slim.fully_connected(fc_flatten,
                                                  num_outputs=cfgs.CLASS_NUM + 1,
@@ -299,7 +299,7 @@ class FasterRCNN():
                 rpn_cls_score = tf.reshape(tf.gather(rpn_cls_score, rpn_select), shape=[-1, 2])
                 rpn_labels = tf.reshape(tf.gather(rpn_labels, rpn_select), shape=[-1])
 
-                rpn_cls_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(features=rpn_cls_score,
+                rpn_cls_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=rpn_cls_score,
                                                                                               labels=rpn_labels))
                 #------------------------------ RPN classification and localization loss-------------------------------
                 rpn_cls_loss = rpn_cls_loss * cfgs.RPN_CLASSIFICATION_LOSS_WEIGHT
@@ -413,7 +413,7 @@ class FasterRCNN():
             rpn_cls_category = tf.gather(rpn_cls_category, indices=kept_rpn_indices)
             rpn_cls_labels = tf.cast(tf.gather(rpn_labels, indices=kept_rpn_indices), dtype=tf.int64)
             # evaluate function
-            acc = tf.cast(tf.reduce_mean(tf.equal(rpn_cls_category, rpn_cls_labels)), dtype=tf.float32)
+            acc = tf.reduce_mean(tf.cast(tf.equal(rpn_cls_category, rpn_cls_labels), dtype=tf.float32))
             tf.summary.scalar('ACC/rpn_accuracy', acc)
 
             with tf.control_dependencies([rpn_labels]):
@@ -447,7 +447,7 @@ class FasterRCNN():
             return self.postprocess_fastrcnn(rois, bbox_ppred=bbox_pred, scores=cls_prob, img_shape=img_shape)
         else:
             '''
-            when train, we need to build loss
+            build loss for train
             '''
             loss_dict = self.build_loss(rpn_box_pred=rpn_box_pred,
                                         rpn_bbox_targets=rpn_bbox_targets,
@@ -502,30 +502,32 @@ class FasterRCNN():
         base_net_dir = os.path.join(pretrain_model_dir, self.base_network_name)
 
         model_variables = slim.get_model_variables()
-        # restore weight of base net(resnet_50, resnet_v1_101) and rpn_net
+        # restore weight from faster rcnn pretrain model
         if is_pretrain:
+            # just restore weight of base net(resnet_50, resnet_v1_101) and rpn_net
             if restore_from_rpn:
                 restore_variables= [var for var in model_variables if not var.name.startwith('Fast-RCNN')]
                 for var in restore_variables:
                     print(var.name)
-                restorer = tf.train.Saver(restore_variables)
+                restorer = tf.compat.v1.train.Saver(restore_variables)
+            # restore all variables weight
             else:
                 restorer = tf.train.Saver()
-            checkpoint_path = tf.train.latest_checkpoint(faster_rcnn_dir)
+            checkpoint_path = tf.compat.v1.train.latest_checkpoint(faster_rcnn_dir)
 
-        # restore variable weight only from base_net(resnet_v1_50, resnet_v1_101)
+        # restore variable weight only from base_net(resnet_v1_50, resnet_v1_101) pretrain model
         else:
             ckpt_var_dict = {}
             for var in model_variables:
-                if var.name.startwith(self.base_network_name):
-                    var_name_ckpt = var.name
+                if var.name.startswith(self.base_network_name):
+                    var_name_ckpt = var.op.name
                     ckpt_var_dict[var_name_ckpt] = var
             restore_variables = ckpt_var_dict
-            for key, item in restore_variables:
+            for key, item in restore_variables.items():
                 print("var_in_graph: ", item.name)
                 print("var_in_ckpt: ", key)
 
-            restorer = tf.train.Saver(restore_variables)
+            restorer = tf.compat.v1.train.Saver(restore_variables)
             checkpoint_path = os.path.join(base_net_dir, self.base_network_name + '.ckpt')
             print("restore from pretrained_weighs in IMAGE_NET")
 
