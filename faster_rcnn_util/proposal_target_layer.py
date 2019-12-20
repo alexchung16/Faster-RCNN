@@ -25,7 +25,7 @@ def proposal_target_layer(rpn_roi, gt_boxes):
     :return:
     """
     if cfgs.ADD_GTBOXES_TO_TRAIN:
-        all_rois = np.vstack(rpn_roi, gt_boxes[:, :-1])
+        all_rois = np.vstack((rpn_roi, gt_boxes[:, :-1]))
     else:
         all_rois = rpn_roi
 
@@ -33,7 +33,7 @@ def proposal_target_layer(rpn_roi, gt_boxes):
     rois_per_image = np.inf if cfgs.FAST_RCNN_MINIBATCH_SIZE == -1 else cfgs.FAST_RCNN_MINIBATCH_SIZE
 
     # number of foreground rois per image
-    fg_rois_per_image = np.around(cfgs.FAST_RCNN_POSITIVE_RATE * rois_per_image)
+    fg_rois_per_image = np.round(cfgs.FAST_RCNN_POSITIVE_RATE * rois_per_image)
 
     # Sample rois with classification labels and bounding box regression
     labels, rois, bbox_targets = sample_rois(all_rois=all_rois,
@@ -60,7 +60,7 @@ def get_bbox_regression_labels(bbox_target_data, num_classes):
         bbox_target (ndarray): N x 4K blob of regression targets
     """
     classes = bbox_target_data[:, 0]
-    bbox_targets = np.zeros(shape=(classes.size, 4 * num_classes), dtype=np.float)
+    bbox_targets = np.zeros(shape=(classes.size, 4 * num_classes), dtype=np.float32)
     indices = np.where(classes > 0)[0]
     for ind in indices:
         cls = classes[ind]
@@ -153,8 +153,7 @@ if __name__ == "__main__":
     classes_num = 20
     target_box = get_bbox_regression_labels(bbox, classes_num)
     print(target_box)
-    print([0]+[i+1 for i in range(20)])
-
+    print([i+1 for i in range(20)] +[0])
 
 
 
