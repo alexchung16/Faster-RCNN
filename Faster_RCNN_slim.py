@@ -490,19 +490,51 @@ class FasterRCNN():
                 final_gradients.append((grad, var))
         return final_gradients
 
-    def get_restore(self, pretrain_model_dir, is_pretrain=False):
+    def get_restore(self, pretrain_model_dir, restore_from_rpn=True, is_pretrain=False):
         """
         restore pretrain weight
         :param pretrain_model_dir:
         :param is_pretrain:
         :return:
         """
+        faster_rcnn_dir = os.path.join(pretrain_model_dir, 'faster_rcnn')
+
+        base_net_dir = os.path.join(pretrain_model_dir, self.base_network_name)
+
+        model_variables = slim.get_model_variables()
+        # restore weight of base net(resnet_50, resnet_v1_101) and rpn_net
         if is_pretrain:
-            # restore weight of base net(resnet_50, resnet_v1_101) and rpn_net
-            faster_rcnn_dir = os.path.join(pretrain_model_dir, 'faster_rcnn')
+            if restore_from_rpn:
+                restore_variables= [var for var in model_variables if not var.name.startwith('Fast-RCNN')]
+                for var in restore_variables:
+                    print(var.name)
+                restorer = tf.train.Saver(restore_variables)
+            else:
+                restorer = tf.train.Saver()
+            checkpoint_path = tf.train.latest_checkpoint(faster_rcnn_dir)
+
+        # restore only base net weight
         else:
-            # restore only base net weight
-            base_net_dir = os.path.join(pretrain_model_dir, self.base_network_name)
+            ckpt_var_dict = {}
+            for var in model_variables:
+                if var.name.startwith(self.base_network_name):
+                    var_name_ckpt = var.name
+                    ckpt_var_dict[var_name_ckpt] = var
+            restore_variables = ckpt_var_dict
+            for key, item in restore_variables:
+                print("var_in_graph: ", item.name)
+                print("var_in_ckpt: ", key)
+
+            restorer = tf.train.Saver(restore_variables)
+            checkpoint_path = os.path.join(base_net_dir, self.base_network_name + '.ckpt')
+
+        return restorer, checkpoint_path
+
+
+
+
+
+
 
 
 
