@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #------------------------------------------------------
-# @ File       : losses.py
+# @ File       : losses_util.py
 # @ Description:  
 # @ Author     : jemmy li
 # @ Contact    : yonganzhong@outlook.com
