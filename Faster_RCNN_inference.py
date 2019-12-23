@@ -106,6 +106,7 @@ class ObjectInference():
                                                                                     boxes=object_boxes,
                                                                                     labels=object_categories,
                                                                                     scores=object_scores)
+                final_detections = cv.cvtColor(final_detections, cv.COLOR_RGB2BGR)
                 # final_detections = draw_box_in_img.draw_boxes_with_label_and_scores(np.array(raw_img, dtype=np.float32),
                 #                                                                     boxes=object_boxes,
                 #                                                                     labels=object_categories,
@@ -122,13 +123,14 @@ class ObjectInference():
                 y_max = y_max * raw_h / resized_h
 
                 object_boxes = np.stack([x_min, y_min, x_max, y_max], axis=1)
+                # final_detections= cv.resize(final_detections[:, :, ::-1], (raw_w, raw_h))
 
                 # recover to raw size
                 tmp_detect_dict['score'] = object_scores
                 tmp_detect_dict['boxes'] = object_boxes
                 tmp_detect_dict['categories'] = object_categories
                 # convert from RGB to BGR
-                tmp_detect_dict['detections'] = final_detections[:, :, ::-1]
+                tmp_detect_dict['detections'] = final_detections
 
                 detect_dict[img_name] = tmp_detect_dict
 
