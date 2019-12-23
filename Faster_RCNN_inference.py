@@ -82,27 +82,57 @@ class ObjectInference():
             assert len(image_list) != 0
             print("test_dir has no imgs there. Note that, we only support img format of {0}".format(format_list))
             #+++++++++++++++++++++++++++++++++++++start detect+++++++++++++++++++++++++++++++++++++++++++++++++++++=++
+            detect_dict= {}
             for index, img_name in enumerate(image_list):
-                raw_img = cv.imread(img_name)
+                tmp_detect_dict = {}
+                bgr_img = cv.imread(img_name)
+                raw_img = cv.cvtColor(bgr_img, cv.COLOR_BGR2RGB)
                 start_time = time.time()
                 resized_img, detected_boxes, detected_scores, detected_categories = \
                     sess.run(
                         [img_batch, detection_boxes, detection_scores, detection_category],
-                        feed_dict={inputs_img: raw_img[:, :, ::-1]}  # convert channel from BGR to RGB (cv is BGR)
+                        feed_dict={inputs_img: raw_img}  # convert channel from BGR to RGB (cv is BGR)
                     )
                 end_time = time.time()
                 print("{} cost time : {} ".format(img_name, (end_time - start_time)))
 
-                show_indices = detected_scores >= cfgs.SHOW_SCORE_THRSHOLD
-                show_scores = detected_scores[show_indices]
-                show_boxes = detected_boxes[show_indices]
-                show_categories = detected_categories[show_indices]
-                final_detections = draw_box_in_img.draw_boxes_with_label_and_scores(np.squeeze(resized_img, 0),
-                                                                                    boxes=show_boxes,
-                                                                                    labels=show_categories,
-                                                                                    scores=show_scores)
-                return final_detections
+                # select object according to threshold
+                object_indices = detected_scores >= cfgs.SHOW_SCORE_THRSHOLD
+                object_scores = detected_scores[object_indices]
+                object_boxes = detected_boxes[object_indices]
+                object_categories = detected_categories[object_indices]
 
+                final_detections = draw_box_in_img.draw_boxes_with_label_and_scores(np.squeeze(resized_img, axis=0),
+                                                                                    boxes=object_boxes,
+                                                                                    labels=object_categories,
+                                                                                    scores=object_scores)
+                # final_detections = draw_box_in_img.draw_boxes_with_label_and_scores(np.array(raw_img, dtype=np.float32),
+                #                                                                     boxes=object_boxes,
+                #                                                                     labels=object_categories,
+                #                                                                     scores=object_scores)
+
+                # resize boxes and image according to raw input image
+                raw_h, raw_w = raw_img.shape[0], raw_img.shape[1]
+                resized_h, resized_w = resized_img.shape[1], resized_img.shape[2]
+                x_min, y_min, x_max, y_max = object_boxes[:, 0], object_boxes[:, 1], object_boxes[:, 2], \
+                                             object_boxes[:, 3]
+                x_min = x_min * raw_w / resized_w
+                y_min = y_min * raw_h / resized_h
+                x_max = x_max * raw_w / resized_w
+                y_max = y_max * raw_h / resized_h
+
+                object_boxes = np.stack([x_min, y_min, x_max, y_max], axis=1)
+
+                # recover to raw size
+                tmp_detect_dict['score'] = object_scores
+                tmp_detect_dict['boxes'] = object_boxes
+                tmp_detect_dict['categories'] = object_categories
+                # convert from RGB to BGR
+                tmp_detect_dict['detections'] = final_detections[:, :, ::-1]
+
+                detect_dict[img_name] = tmp_detect_dict
+
+                return detect_dict
 
     def image_process(self, img):
         """
@@ -154,6 +184,9 @@ class ObjectInference():
                        true_fn=lambda: length,
                        false_fn=lambda: length_limitation)
 
+    def bbox_resize(self, bbox, inputs_shape, target_shape):
+        pass
+
 
 if __name__ == "__main__":
     base_network_name = 'resnet_v1_101'
@@ -162,10 +195,12 @@ if __name__ == "__main__":
     pretrain_model_dir = '/home/alex/Documents/pretraing_model/faster_rcnn'
     inference = ObjectInference(base_network_name=base_network_name, pretrain_model_dir=pretrain_model_dir)
 
-    object_img = inference.exucute_detect(image_path)
-    print(object_img)
-    cv.imshow('object_name', object_img[:, :, ::-1])
-    cv.waitKey()
+    img_detections = inference.exucute_detect(image_path)
+
+    for img_name, detect_info in img_detections.items():
+        print(img_name)
+        cv.imshow('object_name', detect_info['detections'])
+        cv.waitKey()
 
 
 
