@@ -62,7 +62,7 @@ def train():
     train progress
     :return:
     """
-    faster_rcnn = Faster_RCNN_slim.FasterRCNN(base_network_name='resnet_v1_101')
+    faster_rcnn = Faster_RCNN_slim.FasterRCNN(base_network_name='resnet_v1_101', is_training=True)
     #-----------------------------------------------read data----------------------------------------------------------
     with tf.name_scope('get_batch'):
         img_name_batch, img_batch, gtboxes_and_label_batch, num_objects_batch = \
@@ -136,11 +136,11 @@ def train():
                     end_time = time.time()
                     print(""" {}: step{}    image_name:{} |\t | total_loss:{} |\t per_cost_time:{}s""" \
                           .format(training_time, global_stepnp, str(img_name[0]), totalLoss, (end_time - start_time)))
-                # else:
-                #     if step % cfgs.SMRY_ITER == 0:
-                #         _, global_stepnp, summary_str = sess.run([train_op, global_step, summary_op], feed_dict=feed_dict)
-                #         summary_writer.add_summary(summary_str, global_stepnp)
-                #         summary_writer.flush()
+                else:
+                    if step % cfgs.SMRY_ITER == 0:
+                        _, global_stepnp, summary_str = sess.run([train_op, global_step, summary_op], feed_dict=feed_dict)
+                        summary_writer.add_summary(summary_str, global_stepnp)
+                        summary_writer.flush()
 
             if (step > 0 and step % cfgs.SAVE_WEIGHTS_INTE == 0) or (step == cfgs.MAX_ITERATION - 1):
                 save_ckpt = os.path.join(FLAGS.model_path, 'voc_' + str(global_stepnp) + 'model.ckpt')
