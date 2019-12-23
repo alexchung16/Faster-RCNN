@@ -15,10 +15,9 @@ from Faster_RCNN.resnet import ResNet
 from Faster_RCNN.faster_rcnn_util.anchor_utils import make_anchors
 from Faster_RCNN.faster_rcnn_util import boxes_utils
 from Faster_RCNN.faster_rcnn_util import encode_and_decode
-from Faster_RCNN.faster_rcnn_util import show_box_in_tensor
-from Faster_RCNN.faster_rcnn_util.anchor_target_without_boxweight import anchor_target_layer
+from Faster_RCNN.faster_rcnn_util.anchor_target_layer import anchor_target_layer
 from Faster_RCNN.faster_rcnn_util.proposal_target_layer import proposal_target_layer
-from Faster_RCNN.faster_rcnn_util import losses
+from Faster_RCNN.faster_rcnn_util import losses_util
 
 
 class FasterRCNN():
@@ -26,26 +25,61 @@ class FasterRCNN():
     Faster_RCNN
     """
     def __init__(self, base_network_name='resnet_v1_101', weight_decay=0.0001, batch_norm_decay=0.997,
-                 batch_norm_epsilon=1e-5, batch_norm_scale=True, is_training=False):
+                 batch_norm_epsilon=1e-5, batch_norm_scale=True, is_training=True):
         self.base_network_name = base_network_name
         self.weight_decay = weight_decay
         self.batch_norm_decay = batch_norm_decay
         self.batch_norm_epsilon = batch_norm_epsilon
         self.batch_norm_scale = batch_norm_scale
-        self.is_training = is_training
+
         self.num_anchors = len(cfgs.ANCHOR_SCALES) * len(cfgs.ANCHOR_RATIOS)
         self.resnet = ResNet(scope_name=self.base_network_name, weight_decay=weight_decay,
                              batch_norm_decay=batch_norm_decay, batch_norm_epsilon=batch_norm_epsilon,
                              batch_norm_scale=batch_norm_scale)
 
-        # x [img_height, img_height, img_width]
-        self.raw_input_data = tf.compat.v1.placeholder(tf.float32, shape=[None, None, 3], name="input_images")
+        # x [1, img_height, img_height, img_width]
+        self.raw_input_data = tf.compat.v1.placeholder(tf.float32, shape=[None, None, None, 3], name="input_images")
         # y [None, upper_left_x, upper_left_y, down_right_x, down_right_y]
-        self.raw_input_label = tf.compat.v1.placeholder(tf.float32, shape=[None, 5], name="gtbox_label")
+        self.raw_input_gtboxes = tf.compat.v1.placeholder(tf.float32, shape=[None, None, 5], name="gtboxes_label")
         # # is_training flag
-        # self.is_training = tf.compat.v1.placeholder_with_default(input=False, shape=(), name='is_training')
+        self.is_training = is_training
+
+        self.global_step = tf.train.get_or_create_global_step()
+        self.loss = self.losses()
+        self.train = self.training(total_loss=self.loss, global_step=self.global_step)
+
+    def inference(self):
+        """
+        inference function
+        :return:
+        """
+        self.prameter = []
+        final_bbox, final_scores, final_category, loss_dict = self.faster_rcnn(inputs_batch=self.raw_input_data,
+                                                                               gtboxes_batch=self.raw_input_gtboxes)
+        return final_bbox, final_scores, final_category, loss_dict
+
+
+    def fill_feed_dict(self, image_feed, gtboxes_feed):
+        """
+        generate feed dict
+        :param image_feed:
+        :param gtboxes_feed:
+        :param is_training:
+        :return:
+        """
+        feed_dict = {
+            self.raw_input_data: image_feed,
+            self.raw_input_gtboxes: gtboxes_feed
+        }
+
+        return feed_dict
 
     def build_base_network(self, inputs_batch):
+        """
+        base network
+        :param inputs_batch:
+        :return:
+        """
         if self.base_network_name.startswith('resnet_v1'):
             return self.resnet.resnet_base(inputs_batch, is_training=self.is_training)
         else:
@@ -78,6 +112,7 @@ class FasterRCNN():
             rpn_cls_score = tf.reshape(rpn_cls_score, [-1, 2])
 
             return rpn_box_pred, rpn_cls_score
+
 
     def postprocess_rpn_proposals(self, rpn_bbox_pred, rpn_cls_prob, img_shape, anchors, is_training):
         """
@@ -294,10 +329,10 @@ class FasterRCNN():
             with tf.variable_scope('rpn_loss'):
 
                 # get bbox losses(localization loss)
-                rpn_bbox_loss = losses.smooth_l1_loss_rpn(bbox_pred=rpn_box_pred,
-                                                            bbox_targets=rpn_bbox_targets,
-                                                            labels=rpn_labels,
-                                                            sigma=cfgs.RPN_SIGMA)
+                rpn_bbox_loss = losses_util.smooth_l1_loss_rpn(bbox_pred=rpn_box_pred,
+                                                               bbox_targets=rpn_bbox_targets,
+                                                               labels=rpn_labels,
+                                                               sigma=cfgs.RPN_SIGMA)
                 # select foreground and background
                 rpn_select = tf.reshape(tf.where(tf.not_equal(rpn_labels, -1)), shape=[-1])
                 rpn_cls_score = tf.reshape(tf.gather(rpn_cls_score, rpn_select), shape=[-1, 2])
@@ -311,11 +346,11 @@ class FasterRCNN():
 
             with tf.variable_scope('FastRCNN_loss'):
                 if not cfgs.FAST_RCNN_MINIBATCH_SIZE == -1:
-                    bbox_loss = losses.smooth_l1_loss_rcnn(bbox_pred=bbox_pred,
-                                                           bbox_targets=bbox_targets,
-                                                           label=labels,
-                                                           num_classes=cfgs.CLASS_NUM + 1,
-                                                           sigma=cfgs.FASTRCNN_SIGMA)
+                    bbox_loss = losses_util.smooth_l1_loss_rcnn(bbox_pred=bbox_pred,
+                                                                bbox_targets=bbox_targets,
+                                                                label=labels,
+                                                                num_classes=cfgs.CLASS_NUM + 1,
+                                                                sigma=cfgs.FASTRCNN_SIGMA)
                     cls_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
                         logits=cls_score,
                         labels=labels))  # because already sample before
@@ -324,15 +359,13 @@ class FasterRCNN():
                     ''' 
                     applying OHEM here
                     '''
-                    print(20 * "@@")
-                    print("@@" + 10 * " " + "TRAIN WITH OHEM ...")
-                    print(20 * "@@")
-                    cls_loss, bbox_loss = losses.sum_ohem_loss(cls_score=cls_score,
-                                                               labels=labels,
-                                                               bbox_targets=bbox_targets,
-                                                               bbox_pred=bbox_pred,
-                                                               num_ohem_samples=256,
-                                                               num_classes=cfgs.CLASS_NUM + 1)
+                    print("TRAIN WITH OHEM ...")
+                    cls_loss, bbox_loss = losses_util.sum_ohem_loss(cls_score=cls_score,
+                                                                    labels=labels,
+                                                                    bbox_targets=bbox_targets,
+                                                                    bbox_pred=bbox_pred,
+                                                                    num_ohem_samples=256,
+                                                                    num_classes=cfgs.CLASS_NUM + 1)
 
                 # ----------------------- Faster RCNN classification and localization loss------------------------------
                 cls_loss = cls_loss * cfgs.FAST_RCNN_CLASSIFICATION_LOSS_WEIGHT
@@ -468,6 +501,14 @@ class FasterRCNN():
                                                                                  img_shape=img_shape)
             return final_bbox, final_scores, final_category, loss_dict
 
+    def faster_rcnn_arg_scope(self):
+        with slim.arg_scope([slim.conv2d, slim.conv2d_in_plane, slim.conv2d_transpose, slim.separable_conv2d,
+                             slim.fully_connected],
+                            weights_regularizer=slim.l2_regularizer((cfgs.WEIGHT_DECAY)),
+                            biases_regularizer=tf.no_regularizer,
+                            biases_initializer=tf.constant_initializer(0.0)) as sc:
+            return sc
+
     def get_gradients(self, optimizer, loss):
         """
         compute gradient
@@ -536,6 +577,68 @@ class FasterRCNN():
             print("restore from pretrained_weighs in IMAGE_NET")
 
         return restorer, checkpoint_path
+
+    def losses(self):
+        """
+        loss operation
+        :return:
+        """
+        # ----------------------------------------------sparse loss---------------------------------------------------
+        loss_dict = self.inference()[3]
+        rpn_location_loss = loss_dict['rpn_loc_loss']
+        rpn_cls_loss = loss_dict['rpn_cls_loss']
+        rpn_total_loss = rpn_location_loss + rpn_cls_loss
+
+        fastrcnn_cls_loss = loss_dict['fastrcnn_cls_loss']
+        fastrcnn_loc_loss = loss_dict['fastrcnn_loc_loss']
+        fastrcnn_total_loss = fastrcnn_cls_loss + fastrcnn_loc_loss
+
+        total_loss = rpn_total_loss + fastrcnn_total_loss
+
+        tf.summary.scalar('RPN_LOSS/cls_loss', rpn_cls_loss)
+        tf.summary.scalar('RPN_LOSS/location_loss', rpn_location_loss)
+        tf.summary.scalar('RPN_LOSS/rpn_total_loss', rpn_total_loss)
+
+        tf.summary.scalar('FAST_LOSS/fastrcnn_cls_loss', fastrcnn_cls_loss)
+        tf.summary.scalar('FAST_LOSS/fastrcnn_location_loss', fastrcnn_loc_loss)
+        tf.summary.scalar('FAST_LOSS/fastrcnn_total_loss', fastrcnn_total_loss)
+
+        tf.summary.scalar('LOSS/total_loss', total_loss)
+
+        return total_loss
+
+    def training(self, total_loss, global_step):
+        """
+        train operation
+        :param loss_dict:
+        :param global_step:
+        :return:
+        """
+
+        #----------------------------------------------generate optimizer----------------------------------------------
+        learning_rate = tf.train.piecewise_constant(global_step,
+                                                    boundaries=[np.int64(cfgs.DECAY_STEP[0]),
+                                                                np.int64(cfgs.DECAY_STEP[1])],
+                                                    values=[cfgs.LR, cfgs.LR / 10., cfgs.LR / 100.])
+        optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=cfgs.MOMENTUM)
+        tf.summary.scalar('learning_rate', learning_rate)
+
+        # -----------------------------------------computer gradient----------------------------------------------------
+        gradients = self.get_gradients(optimizer, total_loss)
+
+        # enlarge_gradients for bias
+        if cfgs.MUTILPY_BIAS_GRADIENT:
+            gradients = self.enlarge_gradients_for_bias(gradients)
+
+        if cfgs.GRADIENT_CLIPPING_BY_NORM:
+            with tf.name_scope('clip_gradients_YJR'):
+                gradients = slim.learning.clip_gradient_norms(gradients, cfgs.GRADIENT_CLIPPING_BY_NORM)
+
+        # +++++++++++++++++++++++++++++++++++++++++start train+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        # train_op
+        train_op = optimizer.apply_gradients(grads_and_vars=gradients,
+                                             global_step=global_step)
+        return train_op
 
 
 
