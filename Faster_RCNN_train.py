@@ -24,26 +24,37 @@ from Faster_RCNN import Faster_RCNN_slim
 
 original_dataset_dir = '/home/alex/Documents/datasets/Pascal_VOC_2012/VOCtrainval/VOCdevkit_test'
 tfrecord_dir = os.path.join(original_dataset_dir, 'tfrecords')
-record_file = os.path.join(tfrecord_dir, 'train.tfrecords')
 
-original_pretrain_model_dir = '/home/alex/Documents/pretraing_model/faster_rcnn'
-basebone_model_dir = os.path.join(original_pretrain_model_dir, 'resnet_101')
-pretrain_model_dir = os.path.join(original_pretrain_model_dir, 'faster_rcnn')
+pretrain_model_dir = '/home/alex/Documents/pretraing_model/faster_rcnn'
 
-model_path = os.path.join(os.getcwd(), 'model')
-model_name = os.path.join(model_path, 'faster_rcnn.pb')
-logs_dir = os.path.join(os.getcwd(), 'logs')
+model_path = os.path.join(os.getcwd(), 'models')
+pb_model_name = os.path.join(model_path, 'faster_rcnn.pb')
+summary_path = os.path.join(os.getcwd(), 'logs')
 
 
-tf.app.flags.DEFINE_string('record_file', record_file, 'Directory to put the training data.')
-tf.app.flags.DEFINE_bool('is_pretrain', True, 'if True, use pretrain model.')
+tf.app.flags.DEFINE_string('record_file', tfrecord_dir, 'Directory to put the training data.')
+tf.app.flags.DEFINE_bool('restore_from_rpn', False, 'if True, just restore base net and rpn net weights from faster rcnn pretrain model.')
+tf.app.flags.DEFINE_bool('is_pretrain', False, 'if True, restore weight from faster rcnn pretrain model, else just restore basenet pretriain model.')
 
-tf.app.flags.DEFINE_string('basebone_model_dir', basebone_model_dir, 'base bone model dir.')
 tf.app.flags.DEFINE_string('pretrain_model_dir', pretrain_model_dir, 'pretrain model dir.')
-tf.app.flags.DEFINE_string('logs_dir', logs_dir, 'direct of summary logs.')
-tf.app.flags.DEFINE_string('model_name', model_name, 'model_name.')
+tf.app.flags.DEFINE_string('model_path', model_path, 'path of store model.')
+tf.app.flags.DEFINE_string('summary_path', summary_path, 'direct of summary logs.')
+tf.app.flags.DEFINE_string('pb_model_name', pb_model_name, 'pb model_name.')
 FLAGS = tf.app.flags.FLAGS
 
+
+def makedir(path):
+    """
+    create dir
+    :param path:
+    :return:
+    """
+    if os.path.exists(path) is False:
+        os.makedirs(path)
+        print(print('{0} has been created'.format(path)))
+
+makedir(model_path)
+makedir(summary_path)
 
 def train():
     """
@@ -52,14 +63,15 @@ def train():
     """
     faster_rcnn = Faster_RCNN_slim.FasterRCNN(base_network_name='resnet_v1_101', is_training=True)
     #-----------------------------------------------read data----------------------------------------------------------
+
     with tf.name_scope('get_batch'):
         img_name_batch, img_batch, gtboxes_and_label_batch, num_objects_batch = \
             reader_tfrecord(batch_size=cfgs.BATCH_SIZE,
                             shortside_len=cfgs.IMG_SHORT_SIDE_LEN,
+                            length_limitation=cfgs.IMG_MAX_LENGTH,
                             record_file=FLAGS.record_file,
                             is_training=True)
         gtboxes_and_label = tf.reshape(gtboxes_and_label_batch, [-1, 5])
-
 
     # list as many types of layers as possible, even if they are not used now
     with slim.arg_scope([slim.conv2d, slim.conv2d_in_plane, slim.conv2d_transpose, slim.separable_conv2d,
@@ -70,6 +82,7 @@ def train():
         # forward network
         final_bbox, final_scores, final_category, loss_dict = faster_rcnn.faster_rcnn(inputs_batch=img_batch,
                                                                                       gtboxes_batch=gtboxes_and_label)
+
     #++++++++++++++++++++++++++++++++++++++++++++++++build loss function++++++++++++++++++++++++++++++++++++++++++++++
 
     rpn_location_loss = loss_dict['rpn_loc_loss']
@@ -103,6 +116,7 @@ def train():
     tf.summary.scalar('learning_rate', learning_rate)
 
     #-----------------------------------------computer gradient-------------------------------------------------------
+
     gradients = faster_rcnn.get_gradients(optimizer, total_loss)
 
     # enlarge_gradients for bias
@@ -120,6 +134,9 @@ def train():
                                          global_step=global_step)
     summary_op = tf.summary.merge_all()
 
+    restorer, restore_ckpt = faster_rcnn.get_restore(pretrain_model_dir=FLAGS.pretrain_model_dir,
+                                                     restore_from_rpn=FLAGS.restore_from_rpn,
+                                                     is_pretrain=FLAGS.is_pretrain)
     saver = tf.train.Saver(max_to_keep=30)
 
     # support growth train
@@ -130,19 +147,60 @@ def train():
         tf.global_variables_initializer(),
         tf.local_variables_initializer()
     )
-
     with tf.Session() as sess:
         sess.run(init_op)
 
+        if not restorer is None:
+            restorer.restore(sess, save_path=restore_ckpt)
 
+        model_variables = slim.get_model_variables()
+        for var in model_variables:
+            print(var.name, var.shape)
+        # build summary write
+        summary_writer = tf.summary.FileWriter(FLAGS.summary_path, graph=sess.graph)
 
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(sess, coord)
+        #++++++++++++++++++++++++++++++++++++++++start training+++++++++++++++++++++++++++++++++++++++++++++++++++++
+        for step in range(cfgs.MAX_ITERATION):
+            training_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
 
+            if step % cfgs.SHOW_TRAIN_INFO_INTE != 0 and step % cfgs.SMRY_ITER != 0:
+                _, global_stepnp = sess.run([train_op, global_step])
+            else:
+                if step % cfgs.SHOW_TRAIN_INFO_INTE == 0 and step % cfgs.SMRY_ITER != 0:
+                    start_time = time.time()
 
+                    _, global_stepnp, img_name, rpnLocLoss, rpnClsLoss, rpnTotalLoss, \
+                    fastrcnnLocLoss, fastrcnnClsLoss, fastrcnnTotalLoss, totalLoss = \
+                        sess.run(
+                            [train_op, global_step, img_name_batch, rpn_location_loss, rpn_cls_loss, rpn_total_loss,
+                             fastrcnn_loc_loss, fastrcnn_cls_loss, fastrcnn_total_loss, total_loss])
 
+                    end_time = time.time()
+                    print(""" {}: step{}    image_name:{} |\t
+                                     rpn_loc_loss:{} |\t rpn_cla_loss:{} |\t rpn_total_loss:{} |
+                                     fast_rcnn_loc_loss:{} |\t fast_rcnn_cla_loss:{} |\t fast_rcnn_total_loss:{} |
+                                     total_loss:{} |\t per_cost_time:{}s""" \
+                          .format(training_time, global_stepnp, str(img_name[0]), rpnLocLoss, rpnClsLoss,
+                                  rpnTotalLoss, fastrcnnLocLoss, fastrcnnClsLoss, fastrcnnTotalLoss, totalLoss,
+                                  (end_time - start_time)))
+                else:
+                    if step % cfgs.SMRY_ITER == 0:
+                        _, global_stepnp, summary_str = sess.run([train_op, global_step, summary_op])
+                        summary_writer.add_summary(summary_str, global_stepnp)
+                        summary_writer.flush()
 
+            if (step > 0 and step % cfgs.SAVE_WEIGHTS_INTE == 0) or (step == cfgs.MAX_ITERATION - 1):
+                save_ckpt = os.path.join(FLAGS.model_path, 'voc_' + str(global_stepnp) + 'model.ckpt')
+                saver.save(sess, save_ckpt)
+                print(' weights had been saved')
 
+        coord.request_stop()
+        coord.join(threads)
 
 
 
 if __name__ == "__main__":
-    print(FLAGS.pretrain_model_dir)
+
+    train()
