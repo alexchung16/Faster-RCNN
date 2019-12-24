@@ -36,18 +36,20 @@ class FasterRCNN():
         self.resnet = ResNet(scope_name=self.base_network_name, weight_decay=weight_decay,
                              batch_norm_decay=batch_norm_decay, batch_norm_epsilon=batch_norm_epsilon,
                              batch_norm_scale=batch_norm_scale)
-
-        # x [1, img_height, img_height, img_width]
-        self.raw_input_data = tf.compat.v1.placeholder(tf.float32, shape=[None, None, None, 3], name="input_images")
-        # y [None, upper_left_x, upper_left_y, down_right_x, down_right_y]
-        self.raw_input_gtboxes = tf.compat.v1.placeholder(tf.float32, shape=[None, None, 5], name="gtboxes_label")
-        # # is_training flag
         self.is_training = is_training
-
+        # x [1, img_height, img_height, img_width]
+        self.raw_input_data = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, None, 3], name="input_images")
+        # y [None, upper_left_x, upper_left_y, down_right_x, down_right_y]
+        if self.is_training:
+            self.raw_input_gtboxes = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, 5], name="gtboxes_label")
+        else:
+            self.raw_input_gtboxes = None
+    # # is_training flag
         self.global_step = tf.train.get_or_create_global_step()
-        self.logits = self.inference()
-        self.loss = self.losses()
-        self.train = self.training(self.loss, self.global_step)
+        self.inference = self.inference()
+        if self.is_training:
+            self.loss = self.losses()
+            self.train = self.training(self.loss, self.global_step)
 
     def inference(self):
         """
@@ -56,11 +58,11 @@ class FasterRCNN():
         """
         self.prameter = []
         final_bbox, final_scores, final_category = self.faster_rcnn(inputs_batch=self.raw_input_data,
-                                                                               gtboxes_batch=self.raw_input_gtboxes)
+                                                                    gtboxes_batch=self.raw_input_gtboxes)
         return final_bbox, final_scores, final_category
 
 
-    def fill_feed_dict(self, image_feed, gtboxes_feed):
+    def fill_feed_dict(self, image_feed, gtboxes_feed=None):
         """
         generate feed dict
         :param image_feed:
@@ -68,11 +70,15 @@ class FasterRCNN():
         :param is_training:
         :return:
         """
-        feed_dict = {
-            self.raw_input_data: image_feed,
-            self.raw_input_gtboxes: gtboxes_feed
-        }
-
+        if self.is_training:
+            feed_dict = {
+                self.raw_input_data: image_feed,
+                self.raw_input_gtboxes: gtboxes_feed
+            }
+        else:
+            feed_dict = {
+                self.raw_input_data: image_feed
+            }
         return feed_dict
 
     def build_base_network(self, inputs_batch):
