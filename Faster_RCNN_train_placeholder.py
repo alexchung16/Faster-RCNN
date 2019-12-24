@@ -71,7 +71,7 @@ def train():
                             length_limitation=cfgs.IMG_MAX_LENGTH,
                             record_file=FLAGS.record_file,
                             is_training=True)
-        gtboxes_and_label = tf.reshape(gtboxes_and_label_batch, [-1, 5])
+        # gtboxes_and_label_batch = tf.reshape(gtboxes_and_label_batch, [-1, 5])
 
     # list as many types of layers as possible, even if they are not used now
     with slim.arg_scope([slim.conv2d, slim.conv2d_in_plane, slim.conv2d_transpose, slim.separable_conv2d,
