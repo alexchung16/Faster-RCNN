@@ -45,8 +45,9 @@ class FasterRCNN():
         self.is_training = is_training
 
         self.global_step = tf.train.get_or_create_global_step()
+        self.logits = self.inference()
         self.loss = self.losses()
-        self.train = self.training(total_loss=self.loss, global_step=self.global_step)
+        self.train = self.training(self.loss, self.global_step)
 
     def inference(self):
         """
@@ -54,9 +55,9 @@ class FasterRCNN():
         :return:
         """
         self.prameter = []
-        final_bbox, final_scores, final_category, loss_dict = self.faster_rcnn(inputs_batch=self.raw_input_data,
+        final_bbox, final_scores, final_category = self.faster_rcnn(inputs_batch=self.raw_input_data,
                                                                                gtboxes_batch=self.raw_input_gtboxes)
-        return final_bbox, final_scores, final_category, loss_dict
+        return final_bbox, final_scores, final_category
 
 
     def fill_feed_dict(self, image_feed, gtboxes_feed):
@@ -482,11 +483,12 @@ class FasterRCNN():
         # step 6 postprocess fastrcnn
         if not self.is_training:
             return self.postprocess_fastrcnn(rois, bbox_ppred=bbox_pred, scores=cls_prob, img_shape=img_shape)
+        #++++++++++++++++++++++++++++++++++++++build loss for compatible placeholder+++++++++++++++++++++++++++++++++++
         else:
             '''
             build loss for train
             '''
-            loss_dict = self.build_loss(rpn_box_pred=rpn_box_pred,
+            self.loss_dict = self.build_loss(rpn_box_pred=rpn_box_pred,
                                         rpn_bbox_targets=rpn_bbox_targets,
                                         rpn_cls_score=rpn_cls_score,
                                         rpn_labels=rpn_labels,
@@ -494,12 +496,12 @@ class FasterRCNN():
                                         bbox_targets=bbox_targets,
                                         cls_score=cls_score,
                                         labels=labels)
-
+        #----------------------------------------- do not return-------------------------------------------------------
             final_bbox, final_scores, final_category = self.postprocess_fastrcnn(rois=rois,
                                                                                  bbox_ppred=bbox_pred,
                                                                                  scores=cls_prob,
                                                                                  img_shape=img_shape)
-            return final_bbox, final_scores, final_category, loss_dict
+            return final_bbox, final_scores, final_category
 
     def faster_rcnn_arg_scope(self):
         with slim.arg_scope([slim.conv2d, slim.conv2d_in_plane, slim.conv2d_transpose, slim.separable_conv2d,
@@ -584,13 +586,12 @@ class FasterRCNN():
         :return:
         """
         # ----------------------------------------------sparse loss---------------------------------------------------
-        loss_dict = self.inference()[3]
-        rpn_location_loss = loss_dict['rpn_loc_loss']
-        rpn_cls_loss = loss_dict['rpn_cls_loss']
+        rpn_location_loss = self.loss_dict['rpn_loc_loss']
+        rpn_cls_loss = self.loss_dict['rpn_cls_loss']
         rpn_total_loss = rpn_location_loss + rpn_cls_loss
 
-        fastrcnn_cls_loss = loss_dict['fastrcnn_cls_loss']
-        fastrcnn_loc_loss = loss_dict['fastrcnn_loc_loss']
+        fastrcnn_cls_loss = self.loss_dict['fastrcnn_cls_loss']
+        fastrcnn_loc_loss = self.loss_dict['fastrcnn_loc_loss']
         fastrcnn_total_loss = fastrcnn_cls_loss + fastrcnn_loc_loss
 
         total_loss = rpn_total_loss + fastrcnn_total_loss
@@ -614,7 +615,6 @@ class FasterRCNN():
         :param global_step:
         :return:
         """
-
         #----------------------------------------------generate optimizer----------------------------------------------
         learning_rate = tf.train.piecewise_constant(global_step,
                                                     boundaries=[np.int64(cfgs.DECAY_STEP[0]),
