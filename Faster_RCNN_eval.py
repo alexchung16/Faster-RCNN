@@ -16,21 +16,25 @@ import numpy as np
 import cv2 as cv
 import tensorflow as tf
 import argparse
+import pickle
 
 from Faster_RCNN.faster_rcnn_util import cfgs
 from Faster_RCNN.faster_rcnn_util import draw_box_in_img
 from Faster_RCNN.Faster_RCNN_slim import FasterRCNN
-
+from Faster_RCNN.faster_rcnn_util.eval_util import voc_evaluate_detections
 
 class Evaluate():
     """
     evaluate model
     """
-    def __init__(self, base_network_name, pretrain_model_dir, draw_img=False):
+    def __init__(self, base_network_name, pretrain_model_dir, save_path, draw_img=False):
         self.base_network_name = base_network_name
         self.pretrain_model_dir = pretrain_model_dir
         self.draw_img = draw_img
+        self.object_bbox_save_path = os.path.join(save_path, 'bbox_pickle')
+        self.detect_bbox_save_path = os.path.join(save_path, 'detect_bbox')
         self.detect_net = FasterRCNN(base_network_name=base_network_name, is_training=False)
+
 
     def execute_evaluate(self, img_dir, annotation_dir, eval_num):
         """
@@ -43,13 +47,24 @@ class Evaluate():
         # construct image path list
         format_list = ('.jpg', '.png', '.jpeg', '.tif', '.tiff')
         img_name_list = [img_name for img_name in os.listdir(img_dir) if img_name.endswith(format_list)]
-        assert len(img_name_list) != 0
-        print("test_dir has no images there. Note that, we only support image format of {0}".format(format_list))
+        assert len(img_name_list) != 0, \
+            "test_dir has no images there. Note that, we only support image format of {0}".format(format_list)
         # select specialize number image
         eval_img_list = img_name_list[: eval_num]
 
-        all_boxes = self.exucute_detect(img_dir=img_dir, img_name_list=eval_img_list)
+        self.exucute_detect(img_dir=img_dir, img_name_list=img_name_list)
 
+        # load all boxes
+        with open(os.path.join(self.object_bbox_save_path, 'detections.pkl'), 'rb') as f:
+            all_boxes = pickle.load(f)
+
+        mAP = voc_evaluate_detections(all_boxes=all_boxes,
+                                annotation_path=annotation_dir,
+                                img_name_list=eval_img_list,
+                                detect_bbox_save_path=self.detect_bbox_save_path
+                                )
+
+        return mAP
 
     def exucute_detect(self, img_dir, img_name_list):
         """
@@ -117,18 +132,20 @@ class Evaluate():
 
                 # resize boxes and image shape size to raw input image
                 detected_boxes = self.bbox_resize(bbox=detected_boxes,
-                                                  inputs_shape=resized_img.shape[1: 3],
-                                                  target_shape=raw_img.shape[1: 3])
+                                                  inputs_shape=(resized_img.shape[1], resized_img.shape[2]),
+                                                  target_shape=(raw_img.shape[1], resized_img.shape[2]))
 
                 # construct detect array for evaluation
-                detect_box_label = np.hstack((detected_categories.reshape(-1, 1),
+                detect_bbox_label = np.hstack((detected_categories.reshape(-1, 1).astype(np.int32),
                                              detected_scores.reshape(-1, 1),
                                               detected_boxes))
 
-                all_boxes.append(detect_box_label)
+                all_boxes.append(detect_bbox_label)
 
-            return all_boxes
-
+            # dump bbox to local
+            makedir(self.object_bbox_save_path)
+            with open(os.path.join(self.object_bbox_save_path, 'detections.pkl'), 'wb') as fw:
+                pickle.dump(all_boxes, fw)
 
     def image_process(self, image):
         """
@@ -199,18 +216,33 @@ class Evaluate():
 
         return object_boxes
 
+def makedir(path):
+    """
+    create dir
+    :param path:
+    :return:
+    """
+    if os.path.exists(path) is False:
+        os.makedirs(path)
+
 if __name__ == "__main__":
     base_network_name = 'resnet_v1_101'
-    dataset_dir = '/home/alex/Documents/datasets/Pascal_VOC_2012/VOC2012test/VOCdevkit/VOC2012'
+    dataset_dir = '/home/alex/Documents/datasets/Pascal_VOC_2012/eval_test'
     image_dir = os.path.join(dataset_dir, 'JPEGImages')
     annotation_dir = os.path.join(dataset_dir, 'Annotations')
+    save_dir = os.path.join(os.getcwd(), 'datas')
 
     pretrain_model_dir = '/home/alex/Documents/pretraing_model/faster_rcnn'
     evaluate = Evaluate(base_network_name=base_network_name,
-                         pretrain_model_dir=pretrain_model_dir,
-                         draw_img=False)
+                        pretrain_model_dir=pretrain_model_dir,
+                        save_path=save_dir,
+                        draw_img=False)
 
-    evaluate.execute_evaluate(img_dir=image_dir,
+    mAP = evaluate.execute_evaluate(img_dir=image_dir,
                               annotation_dir=annotation_dir,
                               eval_num=10)
+
+    print(mAP)
+
+
 
