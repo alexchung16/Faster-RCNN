@@ -132,8 +132,8 @@ class Evaluate():
 
                 # resize boxes and image shape size to raw input image
                 detected_boxes = self.bbox_resize(bbox=detected_boxes,
-                                                  inputs_shape=(resized_img.shape[1], resized_img.shape[2]),
-                                                  target_shape=(raw_img.shape[1], resized_img.shape[2]))
+                                                  inputs_shape=(resized_img.shape[0], resized_img.shape[1]),
+                                                  target_shape=(raw_img.shape[0], resized_img.shape[1]))
 
                 # construct detect array for evaluation
                 detect_bbox_label = np.hstack((detected_categories.reshape(-1, 1).astype(np.int32),
@@ -209,11 +209,12 @@ class Evaluate():
 
         x_min = x_min * target_shape[1] / inputs_shape[1]
         y_min = y_min * target_shape[0] / inputs_shape[0]
+
         x_max = x_max * target_shape[1] / inputs_shape[1]
         y_max = y_max * target_shape[0] / inputs_shape[0]
 
-        object_boxes = np.stack([x_min, y_min, x_max, y_max], axis=1)
-
+        # object_boxes = np.stack([x_min, y_min, x_max, y_max], axis=1)
+        object_boxes = np.transpose(np.stack([x_min, y_min, x_max, y_max]))
         return object_boxes
 
 def makedir(path):
