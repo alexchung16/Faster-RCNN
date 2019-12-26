@@ -74,16 +74,9 @@ def train():
         # gtboxes_and_label_batch = tf.reshape(gtboxes_and_label_batch, [-1, 5])
 
     # list as many types of layers as possible, even if they are not used now
-    with slim.arg_scope([slim.conv2d, slim.conv2d_in_plane, slim.conv2d_transpose, slim.separable_conv2d,
-                         slim.fully_connected],
-                        weights_regularizer=slim.l2_regularizer((cfgs.WEIGHT_DECAY)),
-                        biases_regularizer=tf.no_regularizer,
-                        biases_initializer=tf.constant_initializer(0.0)):
-        # forward network
-        # final_bbox, final_scores, final_category, loss_dict = faster_rcnn.inference()
-        total_loss = faster_rcnn.loss
-        train_op = faster_rcnn.train
-        global_step = faster_rcnn.global_step
+    total_loss = faster_rcnn.loss
+    train_op = faster_rcnn.train
+    global_step = faster_rcnn.global_step
     #++++++++++++++++++++++++++++++++++++++++++++++++build loss function++++++++++++++++++++++++++++++++++++++++++++++
     summary_op = tf.summary.merge_all()
 
@@ -134,7 +127,7 @@ def train():
                             [train_op, global_step, total_loss], feed_dict=feed_dict)
 
                     end_time = time.time()
-                    print(""" {}: step{}    image_name:{} |\t | total_loss:{} |\t per_cost_time:{}s""" \
+                    print(""" {}: step{}    image_name:{} |\t total_loss:{} |\t per_cost_time:{}s""" \
                           .format(training_time, global_stepnp, str(img_name[0]), totalLoss, (end_time - start_time)))
                 else:
                     if step % cfgs.SMRY_ITER == 0:
