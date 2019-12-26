@@ -56,9 +56,14 @@ class FasterRCNN():
         inference function
         :return:
         """
-        self.prameter = []
-        final_bbox, final_scores, final_category = self.faster_rcnn(inputs_batch=self.raw_input_data,
-                                                                    gtboxes_batch=self.raw_input_gtboxes)
+        if self.is_training:
+        # list as many types of layers as possible, even if they are not used now
+            with slim.arg_scope(self.faster_rcnn_arg_scope()):
+                final_bbox, final_scores, final_category = self.faster_rcnn(inputs_batch=self.raw_input_data,
+                                                                            gtboxes_batch=self.raw_input_gtboxes)
+        else:
+            final_bbox, final_scores, final_category = self.faster_rcnn(inputs_batch=self.raw_input_data,
+                                                                        gtboxes_batch=self.raw_input_gtboxes)
         return final_bbox, final_scores, final_category
 
 
