@@ -11,7 +11,6 @@
 #-------------------------------------------------------
 
 import os
-import sys
 import time
 import numpy as np
 import cv2 as cv
@@ -195,7 +194,8 @@ if __name__ == "__main__":
     image_dir = '/home/alex/python_code/eval_test/demo_image'
     image_path = os.path.join(image_dir,'004640.jpg')
     pretrain_model_dir = '/home/alex/Documents/pretraing_model/faster_rcnn'
-    inference = ObjectInference(base_network_name=base_network_name, pretrain_model_dir=pretrain_model_dir)
+    inference = ObjectInference(base_network_name=base_network_name,
+                                pretrain_model_dir=pretrain_model_dir)
 
     img_detections = inference.exucute_detect(image_path)
 
