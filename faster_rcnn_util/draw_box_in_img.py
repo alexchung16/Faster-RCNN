@@ -6,35 +6,12 @@
 # @ Time 17/12/2019 AM 10:13
 
 import numpy as np
-
-from PIL import Image, ImageDraw, ImageFont
 import cv2
-
+from PIL import Image, ImageDraw, ImageFont
 from  Faster_RCNN.faster_rcnn_util import cfgs
 
-NAME_LABEL_MAP = {
-    'back_ground': 0,
-    'aeroplane': 1,
-    'bicycle': 2,
-    'bird': 3,
-    'boat': 4,
-    'bottle': 5,
-    'bus': 6,
-    'car': 7,
-    'cat': 8,
-    'chair': 9,
-    'cow': 10,
-    'diningtable': 11,
-    'dog': 12,
-    'horse': 13,
-    'motorbike': 14,
-    'person': 15,
-    'pottedplant': 16,
-    'sheep': 17,
-    'sofa': 18,
-    'train': 19,
-    'tvmonitor': 20
-}
+
+NAME_LABEL_MAP = cfgs.PASCAL_NAME_LABEL_MAP
 
 def get_label_name_map():
     reverse_dict = {}
@@ -126,7 +103,15 @@ def draw_label_with_scores(draw_obj, box, label, score, color):
 
 
 def draw_boxes_with_label_and_scores(img_array, boxes, labels, scores):
+    """
 
+    :param img_array:
+    :param boxes:
+    :param labels:
+    :param scores:
+    :return:
+    """
+    # if input image processed by white need to add, now input raw image
     img_array = img_array + np.array(cfgs.PIXEL_MEAN)
     img_array.astype(np.float32)
     boxes = boxes.astype(np.int64)
