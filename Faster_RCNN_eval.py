@@ -23,6 +23,7 @@ from Faster_RCNN.faster_rcnn_util import draw_box_in_img
 from Faster_RCNN.Faster_RCNN_slim import FasterRCNN
 from Faster_RCNN.faster_rcnn_util.eval_util import voc_evaluate_detections
 
+
 class Evaluate():
     """
     evaluate model
@@ -244,6 +245,7 @@ if __name__ == "__main__":
                               eval_num=10)
 
     print(mAP)
+
 
 
 
