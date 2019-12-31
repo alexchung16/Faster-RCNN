@@ -27,21 +27,22 @@ class ResNet():
         self.batch_norm_scale = batch_norm_scale
         self.fixed_block = 1
 
-    def resnet_arg_scope(self, is_training=True, weight_decay=0.0001, batch_norm_decay=0.997,
-                         batch_norm_epsilon=1e-5, batch_norm_scale=True):
+    def resnet_arg_scope(self, is_training=True):
         '''
         In Default, do not use BN to train resnet, since batch_size is too small.
         So is_training is False and trainable is False in the batch_norm params.
         '''
         batch_norm_params = {
-            'is_training': False, 'decay': batch_norm_decay,
-            'epsilon': batch_norm_epsilon, 'scale': batch_norm_scale,
+            'is_training': False,
+            'decay': self.batch_norm_decay,
+            'epsilon': self.batch_norm_epsilon,
+            'scale': self.batch_norm_scale,
             'trainable': False,
             'updates_collections': tf.GraphKeys.UPDATE_OPS
         }
         with slim.arg_scope(
                 [slim.conv2d],
-                weights_regularizer=slim.l2_regularizer(weight_decay),
+                weights_regularizer=slim.l2_regularizer(self.weight_decay),
                 weights_initializer=slim.variance_scaling_initializer(),
                 trainable=is_training,
                 activation_fn=tf.nn.relu,
