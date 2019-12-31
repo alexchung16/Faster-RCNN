@@ -80,7 +80,7 @@ def train():
                         biases_regularizer=tf.no_regularizer,
                         biases_initializer=tf.constant_initializer(0.0)):
         # forward network
-        final_bbox, final_scores, final_category, loss_dict = faster_rcnn.faster_rcnn(inputs_batch=img_batch,
+        final_bbox, final_scores, final_category, loss_dict = faster_rcnn.faster_rcnn(img_batch=img_batch,
                                                                                       gtboxes_batch=gtboxes_and_label)
 
     #++++++++++++++++++++++++++++++++++++++++++++++++build loss function++++++++++++++++++++++++++++++++++++++++++++++

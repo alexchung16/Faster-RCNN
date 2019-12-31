@@ -6,14 +6,12 @@
 # @ Author     : Alex Chung
 # @ Contact    : yonganzhong@outlook.com
 # @ License    : Copyright (c) 2017-2018
-# @ Time       : 2019/12/23 下午2:36
+# @ Time       : 2019/12/23 PM 2:36
 # @ Software   : PyCharm
 #-------------------------------------------------------
 
 import os
-import sys
 import time
-import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 
@@ -117,7 +115,7 @@ def train():
             training_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
 
             if step % cfgs.SHOW_TRAIN_INFO_INTE != 0 and step % cfgs.SMRY_ITER != 0:
-                _, global_stepnp = sess.run(train_op, feed_dict=feed_dict)
+                _, global_stepnp = sess.run([train_op, global_step], feed_dict=feed_dict)
             else:
                 if step % cfgs.SHOW_TRAIN_INFO_INTE == 0 and step % cfgs.SMRY_ITER != 0:
                     start_time = time.time()

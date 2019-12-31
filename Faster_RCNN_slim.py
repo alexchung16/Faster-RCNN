@@ -59,10 +59,10 @@ class FasterRCNN():
         if self.is_training:
         # list as many types of layers as possible, even if they are not used now
             with slim.arg_scope(self.faster_rcnn_arg_scope()):
-                final_bbox, final_scores, final_category = self.faster_rcnn(inputs_batch=self.raw_input_data,
+                final_bbox, final_scores, final_category = self.faster_rcnn(img_batch=self.raw_input_data,
                                                                             gtboxes_batch=self.raw_input_gtboxes)
         else:
-            final_bbox, final_scores, final_category = self.faster_rcnn(inputs_batch=self.raw_input_data,
+            final_bbox, final_scores, final_category = self.faster_rcnn(img_batch=self.raw_input_data,
                                                                         gtboxes_batch=self.raw_input_gtboxes)
         return final_bbox, final_scores, final_category
 
@@ -80,6 +80,7 @@ class FasterRCNN():
                 self.raw_input_data: image_feed,
                 self.raw_input_gtboxes: gtboxes_feed
             }
+
         else:
             feed_dict = {
                 self.raw_input_data: image_feed
@@ -391,7 +392,7 @@ class FasterRCNN():
             }
         return loss_dict
 
-    def faster_rcnn(self, inputs_batch, gtboxes_batch):
+    def faster_rcnn(self, img_batch, gtboxes_batch):
         """
         faster rcnn
         :param input_img_batch:
@@ -403,9 +404,9 @@ class FasterRCNN():
             gtboxes_batch = tf.reshape(gtboxes_batch, [-1, 5])
             gtboxes_batch = tf.cast(gtboxes_batch, tf.float32)
 
-        img_shape = tf.shape(inputs_batch)
+        img_shape = tf.shape(img_batch)
         # step 1 build base network
-        feature_cropped = self.build_base_network(inputs_batch)
+        feature_cropped = self.build_base_network(img_batch)
         # step 2 build rpn
         rpn_box_pred, rpn_cls_score = self.build_rpn_network(feature_cropped)
         rpn_cls_prob = slim.softmax(rpn_cls_score, scope='rpn_cls_prob')
@@ -513,14 +514,6 @@ class FasterRCNN():
                                                                                  scores=cls_prob,
                                                                                  img_shape=img_shape)
             return final_bbox, final_scores, final_category
-
-    def faster_rcnn_arg_scope(self):
-        with slim.arg_scope([slim.conv2d, slim.conv2d_in_plane, slim.conv2d_transpose, slim.separable_conv2d,
-                             slim.fully_connected],
-                            weights_regularizer=slim.l2_regularizer((cfgs.WEIGHT_DECAY)),
-                            biases_regularizer=tf.no_regularizer,
-                            biases_initializer=tf.constant_initializer(0.0)) as sc:
-            return sc
 
     def get_gradients(self, optimizer, loss):
         """
@@ -642,7 +635,7 @@ class FasterRCNN():
             gradients = self.enlarge_gradients_for_bias(gradients)
 
         if cfgs.GRADIENT_CLIPPING_BY_NORM:
-            with tf.name_scope('clip_gradients_YJR'):
+            with tf.name_scope('clip_gradients'):
                 gradients = slim.learning.clip_gradient_norms(gradients, cfgs.GRADIENT_CLIPPING_BY_NORM)
 
         # +++++++++++++++++++++++++++++++++++++++++start train+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -650,6 +643,15 @@ class FasterRCNN():
         train_op = optimizer.apply_gradients(grads_and_vars=gradients,
                                              global_step=global_step)
         return train_op
+
+    def faster_rcnn_arg_scope(self):
+        with slim.arg_scope([slim.conv2d, slim.conv2d_in_plane, slim.conv2d_transpose, slim.separable_conv2d,
+                             slim.fully_connected],
+                            weights_regularizer=slim.l2_regularizer((self.weight_decay)),
+                            biases_regularizer=tf.no_regularizer,
+                            biases_initializer=tf.constant_initializer(0.0)) as sc:
+            return sc
+
 
 
 

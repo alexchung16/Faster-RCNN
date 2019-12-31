@@ -6,7 +6,7 @@
 # @ Author     : Alex Chung
 # @ Contact    : yonganzhong@outlook.com
 # @ License    : Copyright (c) 2017-2018
-# @ Time       : 2019/12/24 上午10:39
+# @ Time       : 2019/12/24 AM 10:39
 # @ Software   : PyCharm
 #-------------------------------------------------------
 
@@ -192,7 +192,7 @@ class ObjectInference():
 
 if __name__ == "__main__":
     base_network_name = 'resnet_v1_101'
-    image_dir = '/home/alex/python_code/eval_test/demo_image'
+    image_dir = '/home/alex/python_code/eval_test/demo_image_1'
     image_path = os.path.join(image_dir,'004640.jpg')
     pretrain_model_dir = '/home/alex/Documents/pretraing_model/faster_rcnn'
     inference = ObjectInference(base_network_name=base_network_name,
