@@ -10,14 +10,14 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 
-from Faster_RCNN.faster_rcnn_util import cfgs
-from Faster_RCNN.resnet import ResNet
-from Faster_RCNN.faster_rcnn_util.anchor_utils import make_anchors
-from Faster_RCNN.faster_rcnn_util import boxes_utils
-from Faster_RCNN.faster_rcnn_util import encode_and_decode
-from Faster_RCNN.faster_rcnn_util.anchor_target_layer import anchor_target_layer
-from Faster_RCNN.faster_rcnn_util.proposal_target_layer import proposal_target_layer
-from Faster_RCNN.faster_rcnn_util import losses_util
+from Faster_RCNN_Tensorflow.faster_rcnn_util import cfgs
+from Faster_RCNN_Tensorflow.faster_rcnn_util.resnet_util import ResNet
+from Faster_RCNN_Tensorflow.faster_rcnn_util.anchor_utils import make_anchors
+from Faster_RCNN_Tensorflow.faster_rcnn_util import boxes_utils
+from Faster_RCNN_Tensorflow.faster_rcnn_util import encode_and_decode
+from Faster_RCNN_Tensorflow.faster_rcnn_util.anchor_target_layer import anchor_target_layer
+from Faster_RCNN_Tensorflow.faster_rcnn_util.proposal_target_layer import proposal_target_layer
+from Faster_RCNN_Tensorflow.faster_rcnn_util import losses_util
 
 
 class FasterRCNN():

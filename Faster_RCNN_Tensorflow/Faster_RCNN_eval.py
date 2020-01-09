@@ -18,10 +18,10 @@ import tensorflow as tf
 import argparse
 import pickle
 
-from Faster_RCNN.faster_rcnn_util import cfgs
-from Faster_RCNN.faster_rcnn_util import draw_box_in_img
-from Faster_RCNN.Faster_RCNN_slim import FasterRCNN
-from Faster_RCNN.faster_rcnn_util.eval_util import voc_evaluate_detections
+from Faster_RCNN_Tensorflow.faster_rcnn_util import cfgs
+from Faster_RCNN_Tensorflow.faster_rcnn_util import draw_box_in_img
+from Faster_RCNN_Tensorflow.Faster_RCNN_slim import FasterRCNN
+from Faster_RCNN_Tensorflow.faster_rcnn_util.eval_util import voc_evaluate_detections
 
 
 class Evaluate():

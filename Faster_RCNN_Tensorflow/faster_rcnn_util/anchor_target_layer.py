@@ -12,10 +12,10 @@
 
 import os
 import tensorflow as tf
-from Faster_RCNN.faster_rcnn_util import cfgs
+from Faster_RCNN_Tensorflow.faster_rcnn_util import cfgs
 import numpy as np
-from Faster_RCNN.faster_rcnn_util.cython_utils.cython_bbox import bbox_overlaps
-from Faster_RCNN.faster_rcnn_util import encode_and_decode
+from Faster_RCNN_Tensorflow.faster_rcnn_util.cython_utils.cython_bbox import bbox_overlaps
+from Faster_RCNN_Tensorflow.faster_rcnn_util import encode_and_decode
 
 def anchor_target_layer(gt_boxes, img_shape, all_anchors, is_restrict=False):
     """

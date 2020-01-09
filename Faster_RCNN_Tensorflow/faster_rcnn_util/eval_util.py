@@ -14,7 +14,7 @@ import os
 import numpy as np
 import xml.etree.ElementTree as ET
 
-from Faster_RCNN.faster_rcnn_util import cfgs
+from Faster_RCNN_Tensorflow.faster_rcnn_util import cfgs
 
 NAME_LABEL_MAP = cfgs.PASCAL_NAME_LABEL_MAP
 
