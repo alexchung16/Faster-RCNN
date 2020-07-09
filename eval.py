@@ -18,10 +18,10 @@ import tensorflow as tf
 import argparse
 import pickle
 
-from Faster_RCNN_Tensorflow.faster_rcnn_util import cfgs
-from Faster_RCNN_Tensorflow.faster_rcnn_util import draw_box_in_img
-from Faster_RCNN_Tensorflow.Faster_RCNN_slim import FasterRCNN
-from Faster_RCNN_Tensorflow.faster_rcnn_util.eval_util import voc_evaluate_detections
+from libs.configs import cfgs
+from libs.box_utils import draw_box_in_img
+from libs.networks.models import FasterRCNN
+from libs.eval_libs.voc_eval import voc_evaluate_detections
 
 
 class Evaluate():
@@ -60,10 +60,9 @@ class Evaluate():
             all_boxes = pickle.load(f)
 
         mAP = voc_evaluate_detections(all_boxes=all_boxes,
-                                annotation_path=annotation_dir,
-                                img_name_list=eval_img_list,
-                                detect_bbox_save_path=self.detect_bbox_save_path
-                                )
+                                      annotation_path=annotation_dir,
+                                      img_name_list=eval_img_list,
+                                      detect_bbox_save_path=self.detect_bbox_save_path)
 
         return mAP
 
