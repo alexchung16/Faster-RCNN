@@ -40,40 +40,21 @@ def train():
         gtboxes_and_label = tf.reshape(gtboxes_and_label_batch, [-1, 5])
 
     # list as many types of layers as possible, even if they are not used now
-    with slim.arg_scope([slim.conv2d, slim.conv2d_in_plane, slim.conv2d_transpose, slim.separable_conv2d,
-                         slim.fully_connected],
-                        weights_regularizer=slim.l2_regularizer((cfgs.WEIGHT_DECAY)),
-                        biases_regularizer=tf.no_regularizer,
-                        biases_initializer=tf.constant_initializer(0.0)):
-        # forward network
-        final_bbox, final_scores, final_category, loss_dict = faster_rcnn.faster_rcnn(img_batch=img_batch,
-                                                                                      gtboxes_batch=gtboxes_and_label)
+    # construct network
+    faster_rcnn.inference()
 
-    #++++++++++++++++++++++++++++++++++++++++++++++++build loss function++++++++++++++++++++++++++++++++++++++++++++++
+    rpn_location_loss = faster_rcnn.loss_dict['rpn_loc_loss']
+    rpn_cls_loss = faster_rcnn.loss_dict['rpn_cls_loss']
+    rpn_total_loss = faster_rcnn.rpn_total_loss
 
-    rpn_location_loss = loss_dict['rpn_loc_loss']
-    rpn_cls_loss = loss_dict['rpn_cls_loss']
-    rpn_total_loss = rpn_location_loss + rpn_cls_loss
+    fastrcnn_cls_loss = faster_rcnn.loss_dict['fastrcnn_cls_loss']
+    fastrcnn_loc_loss = faster_rcnn.loss_dict['fastrcnn_loc_loss']
+    fastrcnn_total_loss = faster_rcnn.fastrcnn_total_loss
 
-    fastrcnn_cls_loss = loss_dict['fastrcnn_cls_loss']
-    fastrcnn_loc_loss = loss_dict['fastrcnn_loc_loss']
-    fastrcnn_total_loss = fastrcnn_cls_loss + fastrcnn_loc_loss
-
-    total_loss = rpn_total_loss + fastrcnn_total_loss
-
-    #-----------------------------------------------add summary-------------------------------------------------------
-    tf.summary.scalar('RPN_LOSS/cls_loss', rpn_cls_loss)
-    tf.summary.scalar('RPN_LOSS/location_loss', rpn_location_loss)
-    tf.summary.scalar('RPN_LOSS/rpn_total_loss', rpn_total_loss)
-
-    tf.summary.scalar('FAST_LOSS/fastrcnn_cls_loss', fastrcnn_cls_loss)
-    tf.summary.scalar('FAST_LOSS/fastrcnn_location_loss', fastrcnn_loc_loss)
-    tf.summary.scalar('FAST_LOSS/fastrcnn_total_loss', fastrcnn_total_loss)
-
-    tf.summary.scalar('LOSS/total_loss', total_loss)
+    total_loss = faster_rcnn.total_loss
 
     #-----------------------------------------gegerate optimizer------------------------------------------------------
-    global_step = tf.train.get_or_create_global_step()
+    global_step = faster_rcnn.global_step
     # piecewise learning rate
     learning_rate = tf.train.piecewise_constant(global_step,
                                                 boundaries=[np.int64(cfgs.DECAY_STEP[0]), np.int64(cfgs.DECAY_STEP[1])],
@@ -129,34 +110,39 @@ def train():
         for step in range(cfgs.MAX_ITERATION):
             training_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
 
+            img_name, image, gtboxes_and_label, num_objects = \
+                sess.run([img_name_batch, img_batch, gtboxes_and_label_batch, num_objects_batch])
+            feed_dict = faster_rcnn.fill_feed_dict(image_feed=image,
+                                                   gtboxes_feed=gtboxes_and_label)
+
             if step % cfgs.SHOW_TRAIN_INFO_INTE != 0 and step % cfgs.SMRY_ITER != 0:
-                _, global_stepnp = sess.run([train_op, global_step])
+                _, globalStep = sess.run([train_op, global_step])
             else:
                 if step % cfgs.SHOW_TRAIN_INFO_INTE == 0 and step % cfgs.SMRY_ITER != 0:
                     start_time = time.time()
 
-                    _, global_stepnp, img_name, rpnLocLoss, rpnClsLoss, rpnTotalLoss, \
+                    _, globalStep, rpnLocLoss, rpnClsLoss, rpnTotalLoss, \
                     fastrcnnLocLoss, fastrcnnClsLoss, fastrcnnTotalLoss, totalLoss = \
                         sess.run(
-                            [train_op, global_step, img_name_batch, rpn_location_loss, rpn_cls_loss, rpn_total_loss,
-                             fastrcnn_loc_loss, fastrcnn_cls_loss, fastrcnn_total_loss, total_loss])
+                            [train_op, global_step, rpn_location_loss, rpn_cls_loss, rpn_total_loss,
+                             fastrcnn_loc_loss, fastrcnn_cls_loss, fastrcnn_total_loss, total_loss], feed_dict=feed_dict)
 
                     end_time = time.time()
                     print(""" {}: step{}    image_name:{} |\t
                                      rpn_loc_loss:{} |\t rpn_cla_loss:{} |\t rpn_total_loss:{} |
                                      fast_rcnn_loc_loss:{} |\t fast_rcnn_cla_loss:{} |\t fast_rcnn_total_loss:{} |
                                      total_loss:{} |\t per_cost_time:{}s""" \
-                          .format(training_time, global_stepnp, str(img_name[0]), rpnLocLoss, rpnClsLoss,
+                          .format(training_time, globalStep, str(img_name[0]), rpnLocLoss, rpnClsLoss,
                                   rpnTotalLoss, fastrcnnLocLoss, fastrcnnClsLoss, fastrcnnTotalLoss, totalLoss,
                                   (end_time - start_time)))
                 else:
                     if step % cfgs.SMRY_ITER == 0:
-                        _, global_stepnp, summary_str = sess.run([train_op, global_step, summary_op])
-                        summary_writer.add_summary(summary_str, global_stepnp)
+                        _, globalStep, summary_str = sess.run([train_op, global_step, summary_op])
+                        summary_writer.add_summary(summary_str, globalStep)
                         summary_writer.flush()
 
             if (step > 0 and step % cfgs.SAVE_WEIGHTS_INTE == 0) or (step == cfgs.MAX_ITERATION - 1):
-                save_ckpt = os.path.join(cfgs.MODEL_CKPT, 'voc_' + str(global_stepnp) + 'model.ckpt')
+                save_ckpt = os.path.join(cfgs.MODEL_CKPT, 'voc_' + str(globalStep) + 'model.ckpt')
                 saver.save(sess, save_ckpt)
                 print(' weights had been saved')
 
