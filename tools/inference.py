@@ -16,9 +16,9 @@ import numpy as np
 import cv2 as cv
 import tensorflow as tf
 
-from Faster_RCNN_Tensorflow.faster_rcnn_util import cfgs
-from Faster_RCNN_Tensorflow.faster_rcnn_util import draw_box_in_img
-from Faster_RCNN_Tensorflow.Faster_RCNN_slim import FasterRCNN
+from libs.configs import cfgs
+from libs.box_utils import draw_box_in_img
+from libs.networks.models import FasterRCNN
 
 
 class ObjectInference():
