@@ -100,7 +100,7 @@ def train():
                                          global_step=global_step)
     summary_op = tf.summary.merge_all()
 
-    restorer, restore_ckpt = faster_rcnn.get_restore(pretrain_model_dir=cfgs.PRETRAINED_CKPT)
+    restorer, restore_ckpt = faster_rcnn.get_restore(pretrained_model_dir=cfgs.PRETRAINED_CKPT)
     saver = tf.train.Saver(max_to_keep=30)
 
     # support growth train

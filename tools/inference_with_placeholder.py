@@ -52,7 +52,7 @@ class ObjectInference():
             sess.run(init_op)
 
             # restore pretrain weight
-            restorer, restore_ckpt = self.detect_net.get_restore(pretrain_model_dir=self.pretrain_model_dir,
+            restorer, restore_ckpt = self.detect_net.get_restore(pretrained_model_dir=self.pretrain_model_dir,
                                                                  restore_from_rpn=False,
                                                                  is_pretrain=True)
             if not restorer is None:
