@@ -37,6 +37,7 @@ class FasterRCNN():
                              batch_norm_decay=batch_norm_decay, batch_norm_epsilon=batch_norm_epsilon,
                              batch_norm_scale=batch_norm_scale)
         self.is_training = is_training
+
         # x [1, img_height, img_height, img_width]
         self.raw_input_data = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, None, 3], name="input_images")
         # y [None, upper_left_x, upper_left_y, down_right_x, down_right_y]
@@ -541,16 +542,16 @@ class FasterRCNN():
                 final_gradients.append((grad, var))
         return final_gradients
 
-    def get_restore(self, pretrain_model_dir, restore_from_rpn=True, is_pretrain=False):
+    def get_restore(self, pretrained_model_dir, restore_from_rpn=True, is_pretrain=False):
         """
         restore pretrain weight
         :param pretrain_model_dir:
         :param is_pretrain:
         :return:
         """
-        faster_rcnn_dir = os.path.join(pretrain_model_dir, 'faster_rcnn')
-
-        base_net_dir = os.path.join(pretrain_model_dir, self.base_network_name)
+        # faster_rcnn_dir = os.path.join(pretrain_model_dir, 'faster_rcnn')
+        #
+        # base_net_dir = os.path.join(pretrain_model_dir, self.base_network_name)
 
         model_variables = slim.get_model_variables()
         # restore weight from faster rcnn pretrain model
@@ -564,7 +565,7 @@ class FasterRCNN():
             # restore all variables weight
             else:
                 restorer = tf.train.Saver()
-            checkpoint_path = tf.compat.v1.train.latest_checkpoint(faster_rcnn_dir)
+            checkpoint_path = tf.compat.v1.train.latest_checkpoint(pretrained_model_dir)
 
         # restore variable weight only from base_net(resnet_v1_50, resnet_v1_101) pretrain model
         else:
@@ -579,7 +580,7 @@ class FasterRCNN():
                 print("var_in_ckpt: ", key)
 
             restorer = tf.compat.v1.train.Saver(restore_variables)
-            checkpoint_path = os.path.join(base_net_dir, self.base_network_name + '.ckpt')
+            checkpoint_path = os.path.join(pretrained_model_dir, self.base_network_name + '.ckpt')
             print("restore from pretrained_weighs in IMAGE_NET")
 
         return restorer, checkpoint_path
