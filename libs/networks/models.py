@@ -10,14 +10,14 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 
-from Faster_RCNN_Tensorflow.faster_rcnn_util import cfgs
-from Faster_RCNN_Tensorflow.faster_rcnn_util.resnet_util import ResNet
-from Faster_RCNN_Tensorflow.faster_rcnn_util.anchor_utils import make_anchors
-from Faster_RCNN_Tensorflow.faster_rcnn_util import boxes_utils
-from Faster_RCNN_Tensorflow.faster_rcnn_util import encode_and_decode
-from Faster_RCNN_Tensorflow.faster_rcnn_util.anchor_target_layer import anchor_target_layer
-from Faster_RCNN_Tensorflow.faster_rcnn_util.proposal_target_layer import proposal_target_layer
-from Faster_RCNN_Tensorflow.faster_rcnn_util import losses_util
+from libs.configs import cfgs
+from libs.networks.resnet_util import ResNet
+from libs.box_utils.anchor_utils import make_anchors
+from libs.box_utils import boxes_utils
+from libs.box_utils import encode_and_decode
+from libs.detect_operations import anchor_target_layer
+from libs.detect_operations import proposal_target_layer
+from libs.losses import losses
 
 
 class FasterRCNN():
@@ -342,7 +342,7 @@ class FasterRCNN():
             with tf.variable_scope('rpn_loss'):
 
                 # get bbox losses(localization loss)
-                rpn_bbox_loss = losses_util.smooth_l1_loss_rpn(bbox_pred=rpn_box_pred,
+                rpn_bbox_loss = losses.smooth_l1_loss_rpn(bbox_pred=rpn_box_pred,
                                                                bbox_targets=rpn_bbox_targets,
                                                                labels=rpn_labels,
                                                                sigma=cfgs.RPN_SIGMA)
@@ -359,7 +359,7 @@ class FasterRCNN():
 
             with tf.variable_scope('FastRCNN_loss'):
                 if not cfgs.FAST_RCNN_MINIBATCH_SIZE == -1:
-                    bbox_loss = losses_util.smooth_l1_loss_rcnn(bbox_pred=bbox_pred,
+                    bbox_loss = losses.smooth_l1_loss_rcnn(bbox_pred=bbox_pred,
                                                                 bbox_targets=bbox_targets,
                                                                 label=labels,
                                                                 num_classes=cfgs.CLASS_NUM + 1,
@@ -373,7 +373,7 @@ class FasterRCNN():
                     applying OHEM here
                     '''
                     print("TRAIN WITH OHEM ...")
-                    cls_loss, bbox_loss = losses_util.sum_ohem_loss(cls_score=cls_score,
+                    cls_loss, bbox_loss = losses.sum_ohem_loss(cls_score=cls_score,
                                                                     labels=labels,
                                                                     bbox_targets=bbox_targets,
                                                                     bbox_pred=bbox_pred,

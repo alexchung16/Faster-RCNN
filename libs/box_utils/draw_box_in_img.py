@@ -8,7 +8,7 @@
 import numpy as np
 import cv2
 from PIL import Image, ImageDraw, ImageFont
-from  Faster_RCNN_Tensorflow.faster_rcnn_util import cfgs
+from libs.configs import cfgs
 
 
 NAME_LABEL_MAP = cfgs.PASCAL_NAME_LABEL_MAP

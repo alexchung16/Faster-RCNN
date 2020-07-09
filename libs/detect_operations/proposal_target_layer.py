@@ -12,9 +12,9 @@
 
 import numpy as np
 
-from Faster_RCNN_Tensorflow.faster_rcnn_util import cfgs
-from Faster_RCNN_Tensorflow.faster_rcnn_util import encode_and_decode
-from Faster_RCNN_Tensorflow.faster_rcnn_util.cython_utils.cython_bbox import bbox_overlaps
+from libs.configs import cfgs
+from libs.box_utils import encode_and_decode
+from libs.box_utils.cython_utils.cython_bbox import bbox_overlaps
 
 def proposal_target_layer(rpn_roi, gt_boxes):
     """

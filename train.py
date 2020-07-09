@@ -15,45 +15,10 @@ import time
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 
-from Faster_RCNN_Tensorflow.faster_rcnn_util import cfgs
-from Faster_RCNN_Tensorflow import Faster_RCNN_slim
-from DataProcess.read_coco_pascal_tfrecord import reader_tfrecord
-
-
-
-original_dataset_dir = '/home/alex/Documents/datasets/Pascal_VOC_2012/VOCtrainval/VOCdevkit_test'
-tfrecord_dir = os.path.join(original_dataset_dir, 'tfrecords')
-
-pretrain_model_dir = '/home/alex/Documents/pretraing_model/faster_rcnn'
-
-model_path = os.path.join(os.getcwd(), 'models')
-pb_model_name = os.path.join(model_path, 'faster_rcnn.pb')
-summary_path = os.path.join(os.getcwd(), 'logs')
-
-
-tf.app.flags.DEFINE_string('record_file', tfrecord_dir, 'Directory to put the training data.')
-tf.app.flags.DEFINE_bool('restore_from_rpn', False, 'if True, just restore base net and rpn net weights from faster rcnn pretrain model.')
-tf.app.flags.DEFINE_bool('is_pretrain', False, 'if True, restore weight from faster rcnn pretrain model, else just restore basenet pretriain model.')
-
-tf.app.flags.DEFINE_string('pretrain_model_dir', pretrain_model_dir, 'pretrain model dir.')
-tf.app.flags.DEFINE_string('model_path', model_path, 'path of store model.')
-tf.app.flags.DEFINE_string('summary_path', summary_path, 'direct of summary logs.')
-tf.app.flags.DEFINE_string('pb_model_name', pb_model_name, 'pb model_name.')
-FLAGS = tf.app.flags.FLAGS
-
-
-def makedir(path):
-    """
-    create dir
-    :param path:
-    :return:
-    """
-    if os.path.exists(path) is False:
-        os.makedirs(path)
-        print(print('{0} has been created'.format(path)))
-
-makedir(model_path)
-makedir(summary_path)
+from libs.configs import cfgs
+from libs.networks import models
+from data.pascal.read_tfrecord import dataset_tfrecord
+from utils.tools import makedir
 
 
 def train():
@@ -61,14 +26,14 @@ def train():
     train progress
     :return:
     """
-    faster_rcnn = Faster_RCNN_slim.FasterRCNN(base_network_name='resnet_v1_101', is_training=True)
+    faster_rcnn = models.FasterRCNN(base_network_name='resnet_v1_101', is_training=True)
     #-----------------------------------------------read data----------------------------------------------------------
     with tf.name_scope('get_batch'):
         img_name_batch, img_batch, gtboxes_and_label_batch, num_objects_batch = \
-            reader_tfrecord(batch_size=cfgs.BATCH_SIZE,
+            dataset_tfrecord(batch_size=cfgs.BATCH_SIZE,
                             shortside_len=cfgs.IMG_SHORT_SIDE_LEN,
                             length_limitation=cfgs.IMG_MAX_LENGTH,
-                            record_file=FLAGS.record_file,
+                            record_file=cfgs.TFRECORD_DIR,
                             is_training=True)
         # gtboxes_and_label_batch = tf.reshape(gtboxes_and_label_batch, [-1, 5])
 
@@ -79,9 +44,7 @@ def train():
     #++++++++++++++++++++++++++++++++++++++++++++++++build loss function++++++++++++++++++++++++++++++++++++++++++++++
     summary_op = tf.summary.merge_all()
 
-    restorer, restore_ckpt = faster_rcnn.get_restore(pretrain_model_dir=FLAGS.pretrain_model_dir,
-                                                     restore_from_rpn=FLAGS.restore_from_rpn,
-                                                     is_pretrain=FLAGS.is_pretrain)
+    restorer, restore_ckpt = faster_rcnn.get_restore(pretrain_model_dir=cfgs.PRETRAINED_CKPT)
     saver = tf.train.Saver(max_to_keep=30)
 
     # support growth train
@@ -102,7 +65,7 @@ def train():
         for var in model_variables:
             print(var.name, var.shape)
         # build summary write
-        summary_writer = tf.summary.FileWriter(FLAGS.summary_path, graph=sess.graph)
+        summary_writer = tf.summary.FileWriter(cfgs.SUMMARY_PATH, graph=sess.graph)
 
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess, coord)
@@ -135,7 +98,7 @@ def train():
                         summary_writer.flush()
 
             if (step > 0 and step % cfgs.SAVE_WEIGHTS_INTE == 0) or (step == cfgs.MAX_ITERATION - 1):
-                save_ckpt = os.path.join(FLAGS.model_path, 'voc_' + str(global_stepnp) + 'model.ckpt')
+                save_ckpt = os.path.join(cfgs.MODEL_CKPT, 'voc_' + str(global_stepnp) + 'model.ckpt')
                 saver.save(sess, save_ckpt)
                 print(' weights had been saved')
 
