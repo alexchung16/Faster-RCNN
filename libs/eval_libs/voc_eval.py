@@ -14,19 +14,11 @@ import os
 import numpy as np
 import xml.etree.ElementTree as ET
 
-from Faster_RCNN_Tensorflow.faster_rcnn_util import cfgs
+from libs.configs import cfgs
+from utils.tools import makedir
 
 NAME_LABEL_MAP = cfgs.PASCAL_NAME_LABEL_MAP
 
-
-def makedir(path):
-    """
-    create dir
-    :param path:
-    :return:
-    """
-    if os.path.exists(path) is False:
-        os.makedirs(path)
 
 def generate_cls_bbox(all_boxes, img_name_list, detect_bbox_save_path):
     """
