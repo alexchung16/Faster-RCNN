@@ -37,7 +37,7 @@ def train():
                             length_limitation=cfgs.IMG_MAX_LENGTH,
                             record_file=cfgs.TFRECORD_DIR,
                             is_training=True)
-        gtboxes_and_label = tf.reshape(gtboxes_and_label_batch, [-1, 5])
+        gtboxes_and_label_batch = tf.reshape(gtboxes_and_label_batch, [-1, 5])
 
     # list as many types of layers as possible, even if they are not used now
     # construct network
