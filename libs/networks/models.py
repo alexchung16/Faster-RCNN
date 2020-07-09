@@ -38,19 +38,12 @@ class FasterRCNN():
                              batch_norm_scale=batch_norm_scale)
         self.is_training = is_training
 
-        # x [1, img_height, img_height, img_width]
+        self.global_step = tf.train.get_or_create_global_step()
+
         self.raw_input_data = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, None, 3], name="input_images")
         # y [None, upper_left_x, upper_left_y, down_right_x, down_right_y]
-        if self.is_training:
-            self.raw_input_gtboxes = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, 5], name="gtboxes_label")
-        else:
-            self.raw_input_gtboxes = None
-    # # is_training flag
-        self.global_step = tf.train.get_or_create_global_step()
-        self.inference = self.inference()
-        if self.is_training:
-            self.loss = self.losses()
-            self.train = self.training(self.loss, self.global_step)
+        self.raw_input_gtboxes = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, 5],
+                                                              name="gtboxes_label")
 
     def inference(self):
         """
@@ -62,6 +55,7 @@ class FasterRCNN():
             with slim.arg_scope(self.faster_rcnn_arg_scope()):
                 final_bbox, final_scores, final_category = self.faster_rcnn(img_batch=self.raw_input_data,
                                                                             gtboxes_batch=self.raw_input_gtboxes)
+            self.losses = self.losses()
         else:
             final_bbox, final_scores, final_category = self.faster_rcnn(img_batch=self.raw_input_data,
                                                                         gtboxes_batch=self.raw_input_gtboxes)
@@ -81,7 +75,6 @@ class FasterRCNN():
                 self.raw_input_data: image_feed,
                 self.raw_input_gtboxes: gtboxes_feed
             }
-
         else:
             feed_dict = {
                 self.raw_input_data: image_feed
@@ -593,25 +586,26 @@ class FasterRCNN():
         # ----------------------------------------------sparse loss---------------------------------------------------
         rpn_location_loss = self.loss_dict['rpn_loc_loss']
         rpn_cls_loss = self.loss_dict['rpn_cls_loss']
-        rpn_total_loss = rpn_location_loss + rpn_cls_loss
+        self.rpn_total_loss = rpn_location_loss + rpn_cls_loss
 
         fastrcnn_cls_loss = self.loss_dict['fastrcnn_cls_loss']
         fastrcnn_loc_loss = self.loss_dict['fastrcnn_loc_loss']
-        fastrcnn_total_loss = fastrcnn_cls_loss + fastrcnn_loc_loss
+        self.fastrcnn_total_loss = fastrcnn_cls_loss + fastrcnn_loc_loss
 
-        total_loss = rpn_total_loss + fastrcnn_total_loss
+        total_loss = self.rpn_total_loss + self.rpn_total_loss
 
         tf.summary.scalar('RPN_LOSS/cls_loss', rpn_cls_loss)
         tf.summary.scalar('RPN_LOSS/location_loss', rpn_location_loss)
-        tf.summary.scalar('RPN_LOSS/rpn_total_loss', rpn_total_loss)
+        tf.summary.scalar('RPN_LOSS/rpn_total_loss', self.rpn_total_loss)
 
         tf.summary.scalar('FAST_LOSS/fastrcnn_cls_loss', fastrcnn_cls_loss)
         tf.summary.scalar('FAST_LOSS/fastrcnn_location_loss', fastrcnn_loc_loss)
-        tf.summary.scalar('FAST_LOSS/fastrcnn_total_loss', fastrcnn_total_loss)
+        tf.summary.scalar('FAST_LOSS/fastrcnn_total_loss', self.fastrcnn_total_loss)
 
         tf.summary.scalar('LOSS/total_loss', total_loss)
 
         return total_loss
+
 
     def training(self, total_loss, global_step):
         """
