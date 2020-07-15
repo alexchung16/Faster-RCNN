@@ -15,8 +15,8 @@ from libs.networks.resnet_util import ResNet
 from libs.box_utils.anchor_utils import make_anchors
 from libs.box_utils import boxes_utils
 from libs.box_utils import encode_and_decode
-from libs.detect_operations import anchor_target_layer
-from libs.detect_operations import proposal_target_layer
+from libs.detect_operations.anchor_target_layer import anchor_target_layer
+from libs.detect_operations.proposal_target_layer import proposal_target_layer
 from libs.losses import losses
 
 
@@ -42,8 +42,7 @@ class FasterRCNN():
 
         self.raw_input_data = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, None, 3], name="input_images")
         # y [None, upper_left_x, upper_left_y, down_right_x, down_right_y]
-        self.raw_input_gtboxes = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, 5],
-                                                              name="gtboxes_label")
+        self.raw_input_gtboxes = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, 5], name="gtboxes_label")
 
     def inference(self):
         """
@@ -55,7 +54,7 @@ class FasterRCNN():
             with slim.arg_scope(self.faster_rcnn_arg_scope()):
                 final_bbox, final_scores, final_category = self.faster_rcnn(img_batch=self.raw_input_data,
                                                                             gtboxes_batch=self.raw_input_gtboxes)
-            self.losses = self.losses()
+            self.total_loss = self.losses()
         else:
             final_bbox, final_scores, final_category = self.faster_rcnn(img_batch=self.raw_input_data,
                                                                         gtboxes_batch=self.raw_input_gtboxes)
