@@ -591,7 +591,9 @@ class FasterRCNN():
         fastrcnn_loc_loss = self.loss_dict['fastrcnn_loc_loss']
         self.fastrcnn_total_loss = fastrcnn_cls_loss + fastrcnn_loc_loss
 
-        total_loss = self.rpn_total_loss + self.rpn_total_loss
+        weight_loss = tf.add_n(slim.losses.get_regularization_losses())
+
+        total_loss = self.rpn_total_loss + self.fastrcnn_total_loss + weight_loss
 
         tf.summary.scalar('RPN_LOSS/cls_loss', rpn_cls_loss)
         tf.summary.scalar('RPN_LOSS/location_loss', rpn_location_loss)
@@ -645,18 +647,4 @@ class FasterRCNN():
                             biases_regularizer=tf.no_regularizer,
                             biases_initializer=tf.constant_initializer(0.0)) as sc:
             return sc
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
