@@ -22,6 +22,9 @@ from libs.networks import models
 from data.pascal.read_tfrecord import dataset_tfrecord
 from utils.tools import makedir
 
+
+# os.environ["CUDA_VISIBLE_DEVICES"]="-1"
+
 def train():
     """
     train progress
@@ -37,7 +40,7 @@ def train():
                             length_limitation=cfgs.IMG_MAX_LENGTH,
                             record_file=cfgs.TFRECORD_DIR,
                             is_training=True)
-        gtboxes_and_label_batch = tf.reshape(gtboxes_and_label_batch, [-1, 5])
+        # gtboxes_and_label_batch = tf.reshape(gtboxes_and_label_batch, [-1, 5])
 
     # list as many types of layers as possible, even if they are not used now
     # construct network
@@ -52,6 +55,7 @@ def train():
     fastrcnn_total_loss = faster_rcnn.fastrcnn_total_loss
 
     total_loss = faster_rcnn.total_loss
+
 
     #-----------------------------------------gegerate optimizer------------------------------------------------------
     global_step = faster_rcnn.global_step
@@ -92,7 +96,7 @@ def train():
         tf.global_variables_initializer(),
         tf.local_variables_initializer()
     )
-    with tf.Session() as sess:
+    with tf.Session(config=config) as sess:
         sess.run(init_op)
 
         if not restorer is None:
@@ -106,50 +110,58 @@ def train():
 
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess, coord)
-        #++++++++++++++++++++++++++++++++++++++++start training+++++++++++++++++++++++++++++++++++++++++++++++++++++
-        for step in range(cfgs.MAX_ITERATION):
-            training_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+        try:
+            if not coord.should_stop():
+                #++++++++++++++++++++++++++++++++++++++++start training+++++++++++++++++++++++++++++++++++++++++++++++++++++
+                for step in range(cfgs.MAX_ITERATION):
+                    training_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
 
-            img_name, image, gtboxes_and_label, num_objects = \
-                sess.run([img_name_batch, img_batch, gtboxes_and_label_batch, num_objects_batch])
-            feed_dict = faster_rcnn.fill_feed_dict(image_feed=image,
-                                                   gtboxes_feed=gtboxes_and_label)
+                    img_name, image, gtboxes_and_label, num_objects = \
+                        sess.run([img_name_batch, img_batch, gtboxes_and_label_batch, num_objects_batch])
 
-            if step % cfgs.SHOW_TRAIN_INFO_INTE != 0 and step % cfgs.SMRY_ITER != 0:
-                _, globalStep = sess.run([train_op, global_step])
-            else:
-                if step % cfgs.SHOW_TRAIN_INFO_INTE == 0 and step % cfgs.SMRY_ITER != 0:
-                    start_time = time.time()
+                    feed_dict = faster_rcnn.fill_feed_dict(image_feed=image,
+                                                           gtboxes_feed=gtboxes_and_label)
 
-                    _, globalStep, rpnLocLoss, rpnClsLoss, rpnTotalLoss, \
-                    fastrcnnLocLoss, fastrcnnClsLoss, fastrcnnTotalLoss, totalLoss = \
-                        sess.run(
-                            [train_op, global_step, rpn_location_loss, rpn_cls_loss, rpn_total_loss,
-                             fastrcnn_loc_loss, fastrcnn_cls_loss, fastrcnn_total_loss, total_loss], feed_dict=feed_dict)
+                    if step % cfgs.SHOW_TRAIN_INFO_INTE != 0 and step % cfgs.SMRY_ITER != 0:
+                        _, globalStep = sess.run([train_op, global_step], feed_dict=feed_dict)
+                    else:
+                        if step % cfgs.SHOW_TRAIN_INFO_INTE == 0 and step % cfgs.SMRY_ITER != 0:
+                            start_time = time.time()
 
-                    end_time = time.time()
-                    print(""" {}: step{}    image_name:{} |\t
-                                     rpn_loc_loss:{} |\t rpn_cla_loss:{} |\t rpn_total_loss:{} |
-                                     fast_rcnn_loc_loss:{} |\t fast_rcnn_cla_loss:{} |\t fast_rcnn_total_loss:{} |
-                                     total_loss:{} |\t per_cost_time:{}s""" \
-                          .format(training_time, globalStep, str(img_name[0]), rpnLocLoss, rpnClsLoss,
-                                  rpnTotalLoss, fastrcnnLocLoss, fastrcnnClsLoss, fastrcnnTotalLoss, totalLoss,
-                                  (end_time - start_time)))
-                else:
-                    if step % cfgs.SMRY_ITER == 0:
-                        _, globalStep, summary_str = sess.run([train_op, global_step, summary_op])
-                        summary_writer.add_summary(summary_str, globalStep)
-                        summary_writer.flush()
+                            _, globalStep, rpnLocLoss, rpnClsLoss, rpnTotalLoss, \
+                            fastrcnnLocLoss, fastrcnnClsLoss, fastrcnnTotalLoss, totalLoss = \
+                                sess.run(
+                                    [train_op, global_step, rpn_location_loss, rpn_cls_loss, rpn_total_loss,
+                                     fastrcnn_loc_loss, fastrcnn_cls_loss, fastrcnn_total_loss, total_loss], feed_dict=feed_dict)
 
-            if (step > 0 and step % cfgs.SAVE_WEIGHTS_INTE == 0) or (step == cfgs.MAX_ITERATION - 1):
-                save_ckpt = os.path.join(cfgs.MODEL_CKPT, 'voc_' + str(globalStep) + 'model.ckpt')
-                saver.save(sess, save_ckpt)
-                print(' weights had been saved')
+                            end_time = time.time()
+                            print(""" {}: step{}\t\image_name:{} |\t
+                                             rpn_loc_loss:{} |\t rpn_cla_loss:{} |\t rpn_total_loss:{} |
+                                             fast_rcnn_loc_loss:{} |\t fast_rcnn_cla_loss:{} |\t fast_rcnn_total_loss:{} |
+                                             total_loss:{} |\t per_cost_time:{}s""" \
+                                  .format(training_time, globalStep, str(img_name[0]), rpnLocLoss, rpnClsLoss,
+                                          rpnTotalLoss, fastrcnnLocLoss, fastrcnnClsLoss, fastrcnnTotalLoss, totalLoss,
+                                          (end_time - start_time)))
+                        else:
+                            if step % cfgs.SMRY_ITER == 0:
+                                _, globalStep, summary_str = sess.run([train_op, global_step, summary_op], feed_dict=feed_dict)
+                                summary_writer.add_summary(summary_str, globalStep)
+                                summary_writer.flush()
 
-        coord.request_stop()
-        coord.join(threads)
+                    if (step > 0 and step % cfgs.SAVE_WEIGHTS_INTE == 0) or (step == cfgs.MAX_ITERATION - 1):
+                        save_ckpt = os.path.join(cfgs.MODEL_CKPT, 'voc_' + str(globalStep) + 'model.ckpt')
+                        saver.save(sess, save_ckpt)
+                        print(' weights had been saved')
+        except Exception as e:
+            # Report exceptions to the coordinator.
+            coord.request_stop(e)
+        finally:
+            coord.request_stop()
+            coord.join(threads)
+            print('all threads are asked to stop!')
 
 
 if __name__ == "__main__":
-
     train()
+
+
