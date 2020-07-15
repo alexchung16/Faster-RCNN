@@ -191,7 +191,7 @@ def dataset_tfrecord(record_file, shortside_len, length_limitation, batch_size=1
     # make dataset iterator
     image, filename, gtboxes_and_label, num_objects = shuffle_batch_dataset.make_one_shot_iterator().get_next()
 
-    return image, filename, gtboxes_and_label, num_objects
+    return filename, image, gtboxes_and_label, num_objects
 
 
 def reader_tfrecord(record_file, shortside_len, length_limitation, batch_size=1, num_threads=2, epoch=5, shuffle=True,
@@ -229,7 +229,7 @@ def reader_tfrecord(record_file, shortside_len, length_limitation, batch_size=1,
                                             dynamic_pad=True
                                             )
     # dataset = tf.data.Dataset.shuffle(buffer_size=batch_size*4)
-    return image, filename, gtboxes_and_label, num_objects
+    return filename, image, gtboxes_and_label, num_objects
 
 
 def get_num_samples(record_dir):
@@ -259,7 +259,7 @@ if __name__ == "__main__":
     # image, filename, gtboxes_and_label, num_objects = reader_tfrecord(record_file=tfrecord_dir,
     #                                                                   shortside_len=IMG_SHORT_SIDE_LEN,
     #                                                                   is_training=True)
-    image_batch, filename_batch, gtboxes_and_label_batch, num_objects_batch = dataset_tfrecord(record_file=tfrecord_dir,
+    filename_batch, image_batch, gtboxes_and_label_batch, num_objects_batch = dataset_tfrecord(record_file=tfrecord_dir,
                                                                        shortside_len=IMG_SHORT_SIDE_LEN,
                                                                        length_limitation=IMG_MAX_LENGTH,
                                                                        is_training=True)
