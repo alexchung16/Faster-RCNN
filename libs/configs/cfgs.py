@@ -8,6 +8,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, print_function, absolute_import
 import os
+import sys
 import tensorflow as tf
 
 
@@ -17,7 +18,9 @@ NET_NAME = 'resnet_v1_101' #'MobilenetV2'
 ADD_BOX_IN_TENSORBOARD = True
 
 # ---------------------------------------- System_config
-ROOT_PATH = os.path.abspath('../')
+ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# ROOT_PATH = sys.path(__file__)
+
 print (20*"++--")
 print (ROOT_PATH)
 GPU_GROUP = "0"
@@ -25,9 +28,11 @@ SHOW_TRAIN_INFO_INTE = 10
 SMRY_ITER = 100
 SAVE_WEIGHTS_INTE = 10000
 
-TFRECORD_DIR = ROOT_PATH + '/data/tfrecord'
+# TFRECORD_DIR = ROOT_PATH + '/data/tfrecord'
+TFRECORD_DIR = '/media/alex/AC6A2BDB6A2BA0D6/alex_dataset/pascal_tfrecord'
 SUMMARY_PATH = ROOT_PATH + '/outputs/summary'
-TEST_SAVE_PATH = ROOT_PATH + '/tools/test_result'
+INFERENCE_SAVE_PATH = ROOT_PATH + '/outputs/inference_results'
+TEST_SAVE_PATH = ROOT_PATH + '/outputs/test_results'
 # INFERENCE_IMAGE_PATH = ROOT_PATH + '/tools/inference_image'
 # INFERENCE_SAVE_PATH = ROOT_PATH + '/tools/results'
 
@@ -38,9 +43,9 @@ elif NET_NAME.startswith("MobilenetV2"):
 else:
     raise Exception('net name must in [resnet_v1_101, resnet_v1_50, MobilenetV2]')
 
-PRETRAINED_CKPT = ROOT_PATH + '/data/pretrained_weights/' + weights_name + '.ckpt'
-MODEL_CKPT = os.path.join(ROOT_PATH, 'output/model_weights')
-EVALUATE_DIR = ROOT_PATH + '/output/evaluate_result'
+PRETRAINED_CKPT = ROOT_PATH + '/data/pretrained_weights'
+MODEL_CKPT = os.path.join(ROOT_PATH, 'outputs/model_weights')
+EVALUATE_DIR = ROOT_PATH + '/outputs/evaluate_result'
 
 # ------------------------------------------ Train config
 RESTORE_FROM_RPN = False
