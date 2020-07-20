@@ -333,6 +333,22 @@ class FasterRCNN():
         tf.summary.image('positive_anchor', pos_in_img)
         tf.summary.image('negative_anchors', neg_in_img)
 
+    def add_roi_batch_img_smry(self, img, rois, labels):
+        positive_roi_indices = tf.reshape(tf.where(tf.greater_equal(labels, 1)), [-1])
+
+        negative_roi_indices = tf.reshape(tf.where(tf.equal(labels, 0)), [-1])
+
+        pos_roi = tf.gather(rois, positive_roi_indices)
+        neg_roi = tf.gather(rois, negative_roi_indices)
+
+
+        pos_in_img = show_box_in_tensor.only_draw_boxes(img_batch=img,
+                                                               boxes=pos_roi)
+        neg_in_img = show_box_in_tensor.only_draw_boxes(img_batch=img,
+                                                               boxes=neg_roi)
+        tf.summary.image('pos_rois', pos_in_img)
+        tf.summary.image('neg_rois', neg_in_img)
+
     def build_loss(self, rpn_box_pred, rpn_bbox_targets, rpn_cls_score, rpn_labels, bbox_pred, bbox_targets,
                    cls_score, labels):
         """
@@ -486,6 +502,7 @@ class FasterRCNN():
                     labels = tf.cast(labels, dtype=tf.int32)
                     labels = tf.reshape(labels, [-1])
                     bbox_targets = tf.reshape(bbox_targets, [-1, 4*(cfgs.CLASS_NUM + 1)])
+                    self.add_roi_batch_img_smry(img_batch, rois, labels)
 
         # -------------------------------------------------------------------------------------------------------------#
         #                                            Fast-RCNN                                                         #
