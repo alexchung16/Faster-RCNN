@@ -21,6 +21,7 @@ from libs.configs import cfgs
 from libs.networks import models
 from data.pascal.read_tfrecord import dataset_tfrecord
 from utils.tools import makedir
+from libs.box_utils import show_box_in_tensor
 
 
 # os.environ["CUDA_VISIBLE_DEVICES"]="-1"
@@ -44,7 +45,7 @@ def train():
 
     # list as many types of layers as possible, even if they are not used now
     # construct network
-    faster_rcnn.inference()
+    final_bbox, final_scores, final_category = faster_rcnn.inference()
 
     rpn_location_loss = faster_rcnn.loss_dict['rpn_loc_loss']
     rpn_cls_loss = faster_rcnn.loss_dict['rpn_cls_loss']
@@ -56,6 +57,17 @@ def train():
 
     total_loss = faster_rcnn.total_loss
 
+    # add final image summary
+    gtboxes_in_img = show_box_in_tensor.draw_boxes_with_categories(img_batch=img_batch,
+                                                                   boxes=gtboxes_and_label_batch[:, :-1],
+                                                                   labels=gtboxes_and_label_batch[:, -1])
+    if cfgs.ADD_BOX_IN_TENSORBOARD:
+        detections_in_img = show_box_in_tensor.draw_boxes_with_categories_and_scores(img_batch=img_batch,
+                                                                                     boxes=final_bbox,
+                                                                                     labels=final_category,
+                                                                                     scores=final_scores)
+        tf.summary.image('Compare/final_detection', detections_in_img)
+    tf.summary.image('Compare/gtboxes', gtboxes_in_img)
 
     #-----------------------------------------gegerate optimizer------------------------------------------------------
     global_step = faster_rcnn.global_step

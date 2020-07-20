@@ -18,6 +18,7 @@ from libs.box_utils import encode_and_decode
 from libs.detect_operations.anchor_target_layer import anchor_target_layer
 from libs.detect_operations.proposal_target_layer import proposal_target_layer
 from libs.losses import losses
+from libs.box_utils import show_box_in_tensor
 
 
 class FasterRCNN():
@@ -316,6 +317,22 @@ class FasterRCNN():
 
                 return bbox_pred, cls_score
 
+    def add_anchor_img_smry(self, img, anchors, labels):
+
+        positive_anchor_indices = tf.reshape(tf.where(tf.greater_equal(labels, 1)), [-1])
+        negative_anchor_indices = tf.reshape(tf.where(tf.equal(labels, 0)), [-1])
+
+        positive_anchor = tf.gather(anchors, positive_anchor_indices)
+        negative_anchor = tf.gather(anchors, negative_anchor_indices)
+
+        pos_in_img = show_box_in_tensor.only_draw_boxes(img_batch=img,
+                                                        boxes=positive_anchor)
+        neg_in_img = show_box_in_tensor.only_draw_boxes(img_batch=img,
+                                                        boxes=negative_anchor)
+
+        tf.summary.image('positive_anchor', pos_in_img)
+        tf.summary.image('negative_anchors', neg_in_img)
+
     def build_loss(self, rpn_box_pred, rpn_bbox_targets, rpn_cls_score, rpn_labels, bbox_pred, bbox_targets,
                    cls_score, labels):
         """
@@ -425,11 +442,11 @@ class FasterRCNN():
                                                                anchors=anchors,
                                                                is_training=self.is_training)
             # +++++++++++++++++++++++++++++++++++++add img summary++++++++++++++++++++++++++++++++++++++++++++++++++++
-            # if self.is_training:
-            #     rois_in_img = show_box_in_tensor.draw_boxes_with_scores(img_batch=inputs_batch,
-            #                                                             boxes=rois,
-            #                                                             scores=roi_scores)
-            #     tf.summary.image('all_rpn_rois', rois_in_img)
+            if self.is_training:
+                rois_in_img = show_box_in_tensor.draw_boxes_with_scores(img_batch=img_batch,
+                                                                        boxes=rois,
+                                                                        scores=roi_scores)
+                tf.summary.image('all_rpn_rois', rois_in_img)
             #
             #     score_gre_05 = tf.reshape(tf.where(tf.greater_equal(roi_scores, 0.5)), [-1])
             #     score_gre_05_rois = tf.gather(rois, score_gre_05)
@@ -448,6 +465,7 @@ class FasterRCNN():
 
                 rpn_labels = tf.cast(rpn_labels, dtype=tf.int32, name='to_int32')
                 rpn_labels = tf.reshape(rpn_labels, shape=[-1])
+                self.add_anchor_img_smry(img_batch, anchors, rpn_labels)
 
             #+++++++++++++++++++++++++++++++++++generate target boxes and labels++++++++++++++++++++++++++++++++++++++++
             rpn_cls_category = tf.argmax(rpn_cls_prob, axis=1)
