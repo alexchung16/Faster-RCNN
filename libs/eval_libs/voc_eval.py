@@ -267,8 +267,8 @@ def voc_evaluate_detections(all_boxes, annotation_path, img_name_list, detect_bb
     img_id_list = [img_name.split('.')[0] for img_name in img_name_list]
 
     generate_cls_bbox(all_boxes=all_boxes,
-                                     img_name_list=img_id_list,
-                                     detect_bbox_save_path=detect_bbox_save_path)
+                      img_name_list=img_id_list,
+                      detect_bbox_save_path=detect_bbox_save_path)
 
     mAP = execute_eval(img_name_list=img_id_list,
                        annotation_path=annotation_path,
