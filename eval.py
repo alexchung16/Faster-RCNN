@@ -89,7 +89,7 @@ class Evaluate():
             # restore pretrain weight
             restorer, restore_ckpt = self.detect_net.get_restore(pretrained_model_dir=self.pretrain_model_dir,
                                                                  restore_from_rpn=False,
-                                                                 is_pretrain=True)
+                                                                 is_pretrained=True)
             if not restorer is None:
                 restorer.restore(sess, save_path=restore_ckpt)
                 print('Successful restore model from {0}'.format(restore_ckpt))
