@@ -12,6 +12,8 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 from tensorflow.python_io import tf_record_iterator
 
+from libs.box_utils import show_box_in_tensor
+
 
 # origin_dataset_dir = '/media/alex/AC6A2BDB6A2BA0D6/alex_dataset/pascal_split/val'
 tfrecord_dir = '/media/alex/AC6A2BDB6A2BA0D6/alex_dataset/pascal_tfrecord'
@@ -263,6 +265,11 @@ if __name__ == "__main__":
                                                                        shortside_len=IMG_SHORT_SIDE_LEN,
                                                                        length_limitation=IMG_MAX_LENGTH,
                                                                        is_training=True)
+    gtboxes_and_label_tensor = tf.reshape(gtboxes_and_label_batch, [-1, 5])
+
+    gtboxes_in_img = show_box_in_tensor.draw_boxes_with_categories(img_batch=image_batch,
+                                                                   boxes=gtboxes_and_label_tensor[:, :-1],
+                                                                   labels=gtboxes_and_label_tensor[:, -1])
     init_op = tf.group(
         tf.global_variables_initializer(),
         tf.local_variables_initializer()
@@ -276,9 +283,10 @@ if __name__ == "__main__":
         threads = tf.train.start_queue_runners(coord=coord)
         try:
             if not coord.should_stop():
-                filename, image, gtboxes_and_label = sess.run([filename_batch, image_batch,  gtboxes_and_label_batch])
+                filename, image, gtboxes_and_label, gtbox_img = sess.run([filename_batch, image_batch,  gtboxes_and_label_batch,
+                                                                          gtboxes_in_img])
 
-                plt.imshow(image[0])
+                plt.imshow(gtbox_img[0])
                 print(filename[0])
                 print(gtboxes_and_label[0])
                 plt.show()
