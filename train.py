@@ -41,7 +41,7 @@ def train():
                             length_limitation=cfgs.IMG_MAX_LENGTH,
                             record_file=cfgs.TFRECORD_DIR,
                             is_training=True)
-        # gtboxes_and_label_batch = tf.reshape(gtboxes_and_label_batch, [-1, 5])
+        gtboxes_and_label_tensor = tf.reshape(gtboxes_and_label_batch, [-1, 5])
 
     # list as many types of layers as possible, even if they are not used now
     # construct network
@@ -57,31 +57,28 @@ def train():
 
     total_loss = faster_rcnn.total_loss
 
-    # gtboxes_in_img = show_box_in_tensor.draw_boxes_with_categories(img_batch=img_batch,
-    #                                                                boxes=gtboxes_and_label_batch[:, :-1],
-    #                                                                labels=gtboxes_and_label_batch[:, -1])
-    # if cfgs.ADD_BOX_IN_TENSORBOARD:
-    #     detections_in_img = show_box_in_tensor.draw_boxes_with_categories_and_scores(img_batch=img_batch,
-    #                                                                                  boxes=final_bbox,
-    #                                                                                  labels=final_category,
-    #                                                                                  scores=final_scores)
-    #     tf.summary.image('Compare/final_detection', detections_in_img)
-    # tf.summary.image('Compare/gtboxes', gtboxes_in_img)
-
+    gtboxes_in_img = show_box_in_tensor.draw_boxes_with_categories(img_batch=img_batch,
+                                                                   boxes=gtboxes_and_label_tensor[:, :-1],
+                                                                   labels=gtboxes_and_label_tensor[:, -1])
+    if cfgs.ADD_BOX_IN_TENSORBOARD:
+        detections_in_img = show_box_in_tensor.draw_boxes_with_categories_and_scores(img_batch=img_batch,
+                                                                                     boxes=final_bbox,
+                                                                                     labels=final_category,
+                                                                                     scores=final_scores)
+        tf.summary.image('Compare/final_detection', detections_in_img)
+    tf.summary.image('Compare/gtboxes', gtboxes_in_img)
 
     #-----------------------------------------gegerate optimizer------------------------------------------------------
     global_step = faster_rcnn.global_step
     # piecewise learning rate
-    # learning_rate = tf.train.piecewise_constant(global_step,
-    #                                             boundaries=[np.int64(cfgs.DECAY_STEP[0]), np.int64(cfgs.DECAY_STEP[1])],
-    #                                             values=[cfgs.LR, cfgs.LR / 10., cfgs.LR / 100.])
-    # optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=cfgs.MOMENTUM)
+    learning_rate = tf.train.piecewise_constant(global_step,
+                                                boundaries=[np.int64(cfgs.DECAY_STEP[0]), np.int64(cfgs.DECAY_STEP[1])],
+                                                values=[cfgs.LR, cfgs.LR / 10., cfgs.LR / 100.])
+    optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=cfgs.MOMENTUM)
+    tf.summary.scalar('learning_rate', learning_rate)
+    # optimizer = tf.train.MomentumOptimizer(learning_rate=0.00001, momentum=cfgs.MOMENTUM)
+    # learning_rate = 0.00001
     # tf.summary.scalar('learning_rate', learning_rate)
-    # learning_rate = tf.train.piecewise_constant(global_step,
-    #                                             boundaries=[np.int64(cfgs.DECAY_STEP[0]), np.int64(cfgs.DECAY_STEP[1])],
-    #                                             values=[cfgs.LR, cfgs.LR / 10., cfgs.LR / 100.])
-    optimizer = tf.train.MomentumOptimizer(learning_rate=0.00001, momentum=cfgs.MOMENTUM)
-    tf.summary.scalar('learning_rate', 0.00001)
     #-----------------------------------------computer gradient-------------------------------------------------------
 
     gradients = faster_rcnn.get_gradients(optimizer, total_loss)
@@ -101,7 +98,7 @@ def train():
                                          global_step=global_step)
     summary_op = tf.summary.merge_all()
 
-    restorer, restore_ckpt = faster_rcnn.get_restore(pretrained_model_dir=cfgs.MODEL_CKPT, is_pretrain=True)
+    restorer, restore_ckpt = faster_rcnn.get_restore(pretrained_model_dir=cfgs.PRETRAINED_CKPT)
     saver = tf.train.Saver(max_to_keep=30)
 
     # support growth train
@@ -117,7 +114,7 @@ def train():
 
         if not restorer is None:
             restorer.restore(sess, save_path=restore_ckpt)
-            print('Successful restore model from {0}'.format(restore_ckpt))
+            print('*'*80 +'\nSuccessful restore model from {0}\n'.format(restore_ckpt) + '*'*80)
         model_variables = slim.get_model_variables()
         for var in model_variables:
             print(var.name, var.shape)
