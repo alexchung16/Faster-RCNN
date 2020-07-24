@@ -13,7 +13,7 @@ import tensorflow as tf
 
 
 # ------------------------------------------------
-VERSION = 'FasterRCNN_20191216'
+VERSION = 'FasterRCNN_20200724'
 NET_NAME = 'resnet_v1_101' #'MobilenetV2'
 ADD_BOX_IN_TENSORBOARD = True
 
@@ -44,7 +44,7 @@ else:
     raise Exception('net name must in [resnet_v1_101, resnet_v1_50, MobilenetV2]')
 
 PRETRAINED_CKPT = ROOT_PATH + '/data/pretrained_weights'
-MODEL_CKPT = os.path.join(ROOT_PATH, 'outputs/model_weights')
+TRAINED_CKPT = os.path.join(ROOT_PATH, 'outputs/trained_weights')
 EVALUATE_DIR = ROOT_PATH + '/outputs/evaluate_result'
 
 # ------------------------------------------ Train config
@@ -109,7 +109,7 @@ RPN_TOP_K_NMS_TEST = 6000  # 5000
 RPN_MAXIMUM_PROPOSAL_TEST = 300  # 300
 
 
-# -------------------------------------------Fast-RCNN config
+# -------------------------------------------Fast-RCNN config---------------------
 ROI_SIZE = 14
 ROI_POOL_KERNEL_SIZE = 2
 USE_DROPOUT = False
@@ -126,7 +126,7 @@ FAST_RCNN_POSITIVE_RATE = 0.25
 ADD_GTBOXES_TO_TRAIN = False
 
 
-#---------------------------------------label_dict----------------------------
+#---------------------------------------label_name_dict----------------------------
 PASCAL_NAME_LABEL_MAP = {
     'back_ground': 0,
     'aeroplane': 1,
