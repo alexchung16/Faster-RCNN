@@ -169,7 +169,7 @@ def train():
 
                         save_dir = os.path.join(cfgs.TRAINED_CKPT, cfgs.VERSION)
                         makedir(save_dir)
-                        save_ckpt = os.path.join(save_dir, 'voc_' + str(globalStep) + 'model.ckpt')
+                        save_ckpt = os.path.join(save_dir, 'voc_' + str(globalStep) + '_model.ckpt')
                         saver.save(sess, save_ckpt)
                         print(' weights had been saved')
         except Exception as e:
