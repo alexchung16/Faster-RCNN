@@ -38,11 +38,11 @@ class FasterRCNN(object):
 
         self.global_step = tf.train.get_or_create_global_step()
 
-        # self.input_images = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, None, 3], name="input_images")
-        # # y [None, upper_left_x, upper_left_y, down_right_x, down_right_y]
-        # self.input_gtboxes = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, 5], name="gtboxes_label")
+        self.images_batch = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, None, 3], name="input_images")
+        # y [None, upper_left_x, upper_left_y, down_right_x, down_right_y]
+        self.gtboxes_batch = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, 5], name="gtboxes_label")
 
-    def inference(self, input_image_batch, input_gtboxes_batch=None):
+    def inference(self):
         """
         inference function
         :return:
@@ -50,33 +50,45 @@ class FasterRCNN(object):
         if self.is_training:
         # list as many types of layers as possible, even if they are not used now
             with slim.arg_scope(self.faster_rcnn_arg_scope()):
-                final_bbox, final_scores, final_category = self.faster_rcnn(input_img_batch=input_image_batch,
-                                                                            gtboxes_batch=input_gtboxes_batch)
+                final_bbox, final_scores, final_category = self.faster_rcnn(input_img_batch=self.images_batch,
+                                                                            gtboxes_batch=self.gtboxes_batch)
             self.total_loss = self.losses()
+            #------add detect summary----------------
+            gtboxes_and_label = tf.reshape(self.gtboxes_batch, [-1, 5])
+            gtboxes_in_img = show_box_in_tensor.draw_boxes_with_categories(img_batch=self.images_batch,
+                                                                           boxes=gtboxes_and_label[:, :-1],
+                                                                           labels=gtboxes_and_label[:, -1])
+            if cfgs.ADD_BOX_IN_TENSORBOARD:
+                detections_in_img = show_box_in_tensor.draw_boxes_with_categories_and_scores(img_batch=self.images_batch,
+                                                                                             boxes=final_bbox,
+                                                                                             labels=final_category,
+                                                                                             scores=final_scores)
+                tf.summary.image('Compare/final_detection', detections_in_img)
+            tf.summary.image('Compare/gtboxes', gtboxes_in_img)
         else:
-            final_bbox, final_scores, final_category = self.faster_rcnn(input_img_batch=input_image_batch,
-                                                                        gtboxes_batch=input_gtboxes_batch)
+            final_bbox, final_scores, final_category = self.faster_rcnn(input_img_batch=self.images_batch,
+                                                                        gtboxes_batch=self.gtboxes_batch)
         return final_bbox, final_scores, final_category
 
 
-    # def fill_feed_dict(self, image_feed, gtboxes_feed=None):
-    #     """
-    #     generate feed dict
-    #     :param image_feed:
-    #     :param gtboxes_feed:
-    #     :param is_training:
-    #     :return:
-    #     """
-    #     if self.is_training:
-    #         feed_dict = {
-    #             self.input_images: image_feed,
-    #             self.input_gtboxes: gtboxes_feed
-    #         }
-    #     else:
-    #         feed_dict = {
-    #             self.input_images: image_feed
-    #         }
-    #     return feed_dict
+    def fill_feed_dict(self, image_feed, gtboxes_feed=None):
+        """
+        generate feed dict
+        :param image_feed:
+        :param gtboxes_feed:
+        :param is_training:
+        :return:
+        """
+        if self.is_training:
+            feed_dict = {
+                self.images_batch: image_feed,
+                self.gtboxes_batch: gtboxes_feed
+            }
+        else:
+            feed_dict = {
+                self.images_batch: image_feed
+            }
+        return feed_dict
 
     def build_base_network(self, input_img_batch):
 
