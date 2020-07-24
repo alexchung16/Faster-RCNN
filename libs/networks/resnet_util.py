@@ -18,13 +18,9 @@ from tensorflow.contrib.slim.python.slim.nets.resnet_v1 import resnet_v1_block
 
 
 class ResNet():
-    def __init__(self, scope_name, weight_decay=0.0001, batch_norm_decay=0.997, batch_norm_epsilon=1e-5,
-                 batch_norm_scale=True):
+    def __init__(self, scope_name, weight_decay=0.0001):
         self.scope_name = scope_name
         self.weight_decay=weight_decay
-        self.batch_norm_decay=batch_norm_decay
-        self.batch_norm_epsilon = batch_norm_epsilon
-        self.batch_norm_scale = batch_norm_scale
         self.fixed_block = 1
 
     def resnet_arg_scope(self, is_training=True):
@@ -34,9 +30,9 @@ class ResNet():
         '''
         batch_norm_params = {
             'is_training': False,
-            'decay': self.batch_norm_decay,
-            'epsilon': self.batch_norm_epsilon,
-            'scale': self.batch_norm_scale,
+            'decay': 0.997,
+            'epsilon': 1e-5,
+            'scale': True,
             'trainable': False,
             'updates_collections': tf.GraphKeys.UPDATE_OPS
         }
