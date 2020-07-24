@@ -79,7 +79,7 @@ def train():
     lr = tf.train.piecewise_constant(global_step,
                                      boundaries=[np.int64(cfgs.DECAY_STEP[0]), np.int64(cfgs.DECAY_STEP[1])],
                                      values=[cfgs.LR, cfgs.LR / 10., cfgs.LR / 100.])
-    tf.summary.scalar('lr', lr)
+    tf.summary.scalar('learning_rage', lr)
     optimizer = tf.train.MomentumOptimizer(lr, momentum=cfgs.MOMENTUM)
 
     # ---------------------------------------------------------------------------------------------compute gradients
