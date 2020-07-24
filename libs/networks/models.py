@@ -1,10 +1,11 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-# @ File DenseNet_Demo.py
-# @ Description :
-# @ Author alexchung
-# @ Time 3/12/2019 PM 16:31
-
+# #!/usr/bin/env python
+# # -*- coding: utf-8 -*-
+# # @ File DenseNet_Demo.py
+# # @ Description :
+# # @ Author alexchung
+# # @ Time 3/12/2019 PM 16:31
+#
+from __future__ import absolute_import, division, print_function
 import os
 import numpy as np
 import tensorflow as tf
@@ -21,31 +22,27 @@ from libs.losses import losses
 from libs.box_utils import show_box_in_tensor
 
 
-class FasterRCNN():
-    """
-    Faster_RCNN
-    """
-    def __init__(self, base_network_name='resnet_v1_101', weight_decay=0.0001, batch_norm_decay=0.997,
-                 batch_norm_epsilon=1e-5, batch_norm_scale=True, is_training=True):
-        self.base_network_name = base_network_name
-        self.weight_decay = weight_decay
-        self.batch_norm_decay = batch_norm_decay
-        self.batch_norm_epsilon = batch_norm_epsilon
-        self.batch_norm_scale = batch_norm_scale
 
+class FasterRCNN(object):
+
+    def __init__(self, base_network_name, is_training):
+
+        self.base_network_name = base_network_name
+        self.is_training = is_training
+        self.num_anchors_per_location = len(cfgs.ANCHOR_SCALES) * len(cfgs.ANCHOR_RATIOS)
+        self.resnet = ResNet(scope_name=self.base_network_name)
         self.num_anchors = len(cfgs.ANCHOR_SCALES) * len(cfgs.ANCHOR_RATIOS)
-        self.resnet = ResNet(scope_name=self.base_network_name, weight_decay=weight_decay,
-                             batch_norm_decay=batch_norm_decay, batch_norm_epsilon=batch_norm_epsilon,
-                             batch_norm_scale=batch_norm_scale)
+
+        self.resnet = ResNet(scope_name=self.base_network_name, weight_decay=cfgs.WEIGHT_DECAY)
         self.is_training = is_training
 
         self.global_step = tf.train.get_or_create_global_step()
 
-        self.raw_input_data = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, None, 3], name="input_images")
-        # y [None, upper_left_x, upper_left_y, down_right_x, down_right_y]
-        self.raw_input_gtboxes = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, 5], name="gtboxes_label")
+        # self.input_images = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, None, 3], name="input_images")
+        # # y [None, upper_left_x, upper_left_y, down_right_x, down_right_y]
+        # self.input_gtboxes = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, 5], name="gtboxes_label")
 
-    def inference(self):
+    def inference(self, input_image_batch, input_gtboxes_batch=None):
         """
         inference function
         :return:
@@ -53,44 +50,41 @@ class FasterRCNN():
         if self.is_training:
         # list as many types of layers as possible, even if they are not used now
             with slim.arg_scope(self.faster_rcnn_arg_scope()):
-                final_bbox, final_scores, final_category = self.faster_rcnn(img_batch=self.raw_input_data,
-                                                                            gtboxes_batch=self.raw_input_gtboxes)
+                final_bbox, final_scores, final_category = self.faster_rcnn(input_img_batch=input_image_batch,
+                                                                            gtboxes_batch=input_gtboxes_batch)
             self.total_loss = self.losses()
         else:
-            final_bbox, final_scores, final_category = self.faster_rcnn(img_batch=self.raw_input_data,
-                                                                        gtboxes_batch=self.raw_input_gtboxes)
+            final_bbox, final_scores, final_category = self.faster_rcnn(input_img_batch=input_image_batch,
+                                                                        gtboxes_batch=input_gtboxes_batch)
         return final_bbox, final_scores, final_category
 
 
-    def fill_feed_dict(self, image_feed, gtboxes_feed=None):
-        """
-        generate feed dict
-        :param image_feed:
-        :param gtboxes_feed:
-        :param is_training:
-        :return:
-        """
-        if self.is_training:
-            feed_dict = {
-                self.raw_input_data: image_feed,
-                self.raw_input_gtboxes: gtboxes_feed
-            }
-        else:
-            feed_dict = {
-                self.raw_input_data: image_feed
-            }
-        return feed_dict
+    # def fill_feed_dict(self, image_feed, gtboxes_feed=None):
+    #     """
+    #     generate feed dict
+    #     :param image_feed:
+    #     :param gtboxes_feed:
+    #     :param is_training:
+    #     :return:
+    #     """
+    #     if self.is_training:
+    #         feed_dict = {
+    #             self.input_images: image_feed,
+    #             self.input_gtboxes: gtboxes_feed
+    #         }
+    #     else:
+    #         feed_dict = {
+    #             self.input_images: image_feed
+    #         }
+    #     return feed_dict
 
-    def build_base_network(self, inputs_batch):
-        """
-        base network
-        :param inputs_batch:
-        :return:
-        """
+    def build_base_network(self, input_img_batch):
+
         if self.base_network_name.startswith('resnet_v1'):
-            return self.resnet.resnet_base(inputs_batch, is_training=self.is_training)
+            return  self.resnet.resnet_base(input_img_batch,  is_training=self.is_training)
+
         else:
-            raise ValueError('Sry, we only support resnet_50 or resnet_101')
+            raise ValueError('Sry, we only support resnet or mobilenet_v2')
 
     def build_rpn_network(self, inputs_feature):
         """
@@ -98,17 +92,17 @@ class FasterRCNN():
         :param inputs_feature:
         :return:
         """
-        with tf.variable_scope('build_rpn', regularizer=slim.l2_regularizer(self.weight_decay)):
+        with tf.variable_scope('build_rpn', regularizer=slim.l2_regularizer(cfgs.WEIGHT_DECAY)):
             rpn_conv_3x3= slim.conv2d(inputs=inputs_feature, num_outputs=512, kernel_size=[3, 3],
                                       weights_initializer=cfgs.INITIALIZER, activation_fn=tf.nn.relu,
                                       trainable=self.is_training, scope='rpn_conv/3x3')
 
             # (num_anchors * 2, img_height, img_width)
-            rpn_cls_score = slim.conv2d(rpn_conv_3x3, num_outputs=self.num_anchors * 2, kernel_size=[1, 1], stride=1,
+            rpn_cls_score = slim.conv2d(rpn_conv_3x3, num_outputs=self.num_anchors_per_location * 2, kernel_size=[1, 1], stride=1,
                                         trainable=self.is_training, weights_initializer=cfgs.INITIALIZER,
                                         activation_fn=None, scope='rpn_cls_score')
             # ((num_anchors * 4, img_height, img_width))
-            rpn_box_pred = slim.conv2d(rpn_conv_3x3, num_outputs=self.num_anchors * 4, kernel_size=[1, 1],
+            rpn_box_pred = slim.conv2d(rpn_conv_3x3, num_outputs=self.num_anchors_per_location * 4, kernel_size=[1, 1],
                                        stride=1, trainable=self.is_training, weights_initializer=cfgs.BBOX_INITIALIZER,
                                        activation_fn=None, scope='rpn_bbox_pred')
             # (img_height * img_width * mum_anchor, 4)
@@ -230,6 +224,7 @@ class FasterRCNN():
 
         return final_boxes, final_scores, final_category
 
+
     def roi_pooling(self, feature_maps, rois, img_shape):
         '''
         Here use roi warping as roi_pooling
@@ -283,16 +278,15 @@ class FasterRCNN():
                 pooled_feature = self.roi_pooling(feature_maps=feature_crop, rois=rois, img_shape=img_shape)
             # step 6 Inference rois in Fast-RCNN to obtain fc_flatten features
             if self.base_network_name.startswith('resnet'):
-
                 # cfgs.FAST_RCNN_MINIBATCH_SIZE x 2048
-                fc_flatten = self.resnet.restnet_head(inputs=pooled_feature,
+                fc_flatten =  self.resnet.restnet_head(inputs=pooled_feature,
                                                       is_training=self.is_training,
                                                       scope_name=self.base_network_name)
             else:
                 raise NotImplementedError('only support resnet_50 and resnet_101')
 
             # cls and reg in Fast-RCNN
-            with slim.arg_scope([slim.fully_connected], weights_regularizer=slim.l2_regularizer(self.weight_decay)):
+            with slim.arg_scope([slim.fully_connected], weights_regularizer=slim.l2_regularizer(cfgs.WEIGHT_DECAY)):
                 # cfgs.FAST_RCNN_MINIBATCH_SIZE x cfgs.CLASS_NUM + 1
                 cls_score = slim.fully_connected(fc_flatten,
                                                  num_outputs=cfgs.CLASS_NUM + 1,
@@ -369,9 +363,9 @@ class FasterRCNN():
 
                 # get bbox losses(localization loss)
                 rpn_bbox_loss = losses.smooth_l1_loss_rpn(bbox_pred=rpn_box_pred,
-                                                               bbox_targets=rpn_bbox_targets,
-                                                               labels=rpn_labels,
-                                                               sigma=cfgs.RPN_SIGMA)
+                                                           bbox_targets=rpn_bbox_targets,
+                                                           labels=rpn_labels,
+                                                           sigma=cfgs.RPN_SIGMA)
                 # select foreground and background
                 rpn_select = tf.reshape(tf.where(tf.not_equal(rpn_labels, -1)), shape=[-1])
                 rpn_cls_score = tf.reshape(tf.gather(rpn_cls_score, rpn_select), shape=[-1, 2])
@@ -400,11 +394,11 @@ class FasterRCNN():
                     '''
                     print("TRAIN WITH OHEM ...")
                     cls_loss, bbox_loss = losses.sum_ohem_loss(cls_score=cls_score,
-                                                                    labels=labels,
-                                                                    bbox_targets=bbox_targets,
-                                                                    bbox_pred=bbox_pred,
-                                                                    num_ohem_samples=256,
-                                                                    num_classes=cfgs.CLASS_NUM + 1)
+                                                               labels=labels,
+                                                               bbox_targets=bbox_targets,
+                                                               bbox_pred=bbox_pred,
+                                                               num_ohem_samples=256,
+                                                               num_classes=cfgs.CLASS_NUM + 1)
 
                 # ----------------------- Faster RCNN classification and localization loss------------------------------
                 cls_loss = cls_loss * cfgs.FAST_RCNN_CLASSIFICATION_LOSS_WEIGHT
@@ -418,21 +412,17 @@ class FasterRCNN():
             }
         return loss_dict
 
-    def faster_rcnn(self, img_batch, gtboxes_batch):
-        """
-        faster rcnn
-        :param input_img_batch:
-        :param gtboxes_batch:
-        :return:
-        """
+
+    def faster_rcnn(self, input_img_batch, gtboxes_batch):
+
         if self.is_training:
             # ensure shape is [M, 5]
             gtboxes_batch = tf.reshape(gtboxes_batch, [-1, 5])
             gtboxes_batch = tf.cast(gtboxes_batch, tf.float32)
 
-        img_shape = tf.shape(img_batch)
+        img_shape = tf.shape(input_img_batch)
         # step 1 build base network
-        feature_cropped = self.build_base_network(img_batch)
+        feature_cropped = self.build_base_network(input_img_batch)
         # step 2 build rpn
         rpn_box_pred, rpn_cls_score = self.build_rpn_network(feature_cropped)
         rpn_cls_prob = slim.softmax(rpn_cls_score, scope='rpn_cls_prob')
@@ -459,18 +449,18 @@ class FasterRCNN():
                                                                is_training=self.is_training)
             # +++++++++++++++++++++++++++++++++++++add img summary++++++++++++++++++++++++++++++++++++++++++++++++++++
             if self.is_training:
-                rois_in_img = show_box_in_tensor.draw_boxes_with_scores(img_batch=img_batch,
+                rois_in_img = show_box_in_tensor.draw_boxes_with_scores(img_batch=input_img_batch,
                                                                         boxes=rois,
                                                                         scores=roi_scores)
                 tf.summary.image('all_rpn_rois', rois_in_img)
-            #
-            #     score_gre_05 = tf.reshape(tf.where(tf.greater_equal(roi_scores, 0.5)), [-1])
-            #     score_gre_05_rois = tf.gather(rois, score_gre_05)
-            #     score_gre_05_score = tf.gather(roi_scores, score_gre_05)
-            #     score_gre_05_in_img = show_box_in_tensor.draw_boxes_with_scores(img_batch=inputs_batch,
-            #                                                                     boxes=score_gre_05_rois,
-            #                                                                     scores=score_gre_05_score)
-            #     tf.summary.image('score_greater_05_rois', score_gre_05_in_img)
+
+                score_gre_05 = tf.reshape(tf.where(tf.greater_equal(roi_scores, 0.5)), [-1])
+                score_gre_05_rois = tf.gather(rois, score_gre_05)
+                score_gre_05_score = tf.gather(roi_scores, score_gre_05)
+                score_gre_05_in_img = show_box_in_tensor.draw_boxes_with_scores(img_batch=input_img_batch,
+                                                                                boxes=score_gre_05_rois,
+                                                                                scores=score_gre_05_score)
+                tf.summary.image('score_greater_05_rois', score_gre_05_in_img)
         #++++++++++++++++++++++++++++++++++++++++get rpn_lablel and rpn_bbox_target++++++++++++++++++++++++++++++++++++
         if self.is_training:
             with tf.variable_scope('sample_anchors_minibatch'):
@@ -481,7 +471,7 @@ class FasterRCNN():
 
                 rpn_labels = tf.cast(rpn_labels, dtype=tf.int32, name='to_int32')
                 rpn_labels = tf.reshape(rpn_labels, shape=[-1])
-                self.add_anchor_img_smry(img_batch, anchors, rpn_labels)
+                self.add_anchor_img_smry(input_img_batch, anchors, rpn_labels)
 
             #+++++++++++++++++++++++++++++++++++generate target boxes and labels++++++++++++++++++++++++++++++++++++++++
             rpn_cls_category = tf.argmax(rpn_cls_prob, axis=1)
@@ -502,7 +492,7 @@ class FasterRCNN():
                     labels = tf.cast(labels, dtype=tf.int32)
                     labels = tf.reshape(labels, [-1])
                     bbox_targets = tf.reshape(bbox_targets, [-1, 4*(cfgs.CLASS_NUM + 1)])
-                    self.add_roi_batch_img_smry(img_batch, rois, labels)
+                    self.add_roi_batch_img_smry(input_img_batch, rois, labels)
 
         # -------------------------------------------------------------------------------------------------------------#
         #                                            Fast-RCNN                                                         #
@@ -513,20 +503,19 @@ class FasterRCNN():
 
         cls_prob = slim.softmax(cls_score, 'cls_prob')
 
-        #----------------------------------------------add smry---------------------------------------------------------
+
+        # ----------------------------------------------add smry-------------------------------------------------------
         if self.is_training:
             cls_category = tf.argmax(cls_prob, axis=1)
-            cls_labels = tf.cast(labels, dtype=tf.int64)
-            fast_acc = tf.reduce_mean(tf.cast(tf.equal(cls_category, cls_labels), dtype=tf.float32))
+            fast_acc = tf.reduce_mean(tf.to_float(tf.equal(cls_category, tf.to_int64(labels))))
             tf.summary.scalar('ACC/fast_acc', fast_acc)
 
-        # step 6 postprocess fastrcnn
+        #  6. postprocess_fastrcnn
         if not self.is_training:
-            return self.postprocess_fastrcnn(rois, bbox_ppred=bbox_pred, scores=cls_prob, img_shape=img_shape)
-        #++++++++++++++++++++++++++++++++++++++build loss for compatible placeholder+++++++++++++++++++++++++++++++++++
+            return self.postprocess_fastrcnn(rois=rois, bbox_ppred=bbox_pred, scores=cls_prob, img_shape=img_shape)
         else:
             '''
-            build loss for train
+            when trian. We need build Loss
             '''
             self.loss_dict = self.build_loss(rpn_box_pred=rpn_box_pred,
                                         rpn_bbox_targets=rpn_bbox_targets,
@@ -536,81 +525,12 @@ class FasterRCNN():
                                         bbox_targets=bbox_targets,
                                         cls_score=cls_score,
                                         labels=labels)
-        #----------------------------------------- do not return-------------------------------------------------------
+
             final_bbox, final_scores, final_category = self.postprocess_fastrcnn(rois=rois,
                                                                                  bbox_ppred=bbox_pred,
                                                                                  scores=cls_prob,
                                                                                  img_shape=img_shape)
             return final_bbox, final_scores, final_category
-
-    def get_gradients(self, optimizer, loss):
-        """
-        compute gradient
-        :param optimizer:
-        :param total_loss:
-        :return:
-        """
-        return optimizer.compute_gradients(loss)
-
-    def enlarge_gradients_for_bias(self, gradients):
-        """
-
-        :param gradients:
-        :return:
-        """
-        final_gradients = []
-        with tf.variable_scope("Gradient_Mult") as scope:
-            for grad, var in gradients:
-                scale = 1.0
-                if cfgs.MUTILPY_BIAS_GRADIENT and './biases' in var.name:
-                    scale = scale * cfgs.MUTILPY_BIAS_GRADIENT
-                if not np.allclose(scale, 1.0):
-                    grad = tf.multiply(grad, scale)
-                final_gradients.append((grad, var))
-        return final_gradients
-
-    def get_restore(self, pretrained_model_dir, restore_from_rpn=True, is_pretrained=False):
-        """
-        restore pretrain weight
-        :param pretrain_model_dir:
-        :param is_pretrain:
-        :return:
-        """
-        # faster_rcnn_dir = os.path.join(pretrain_model_dir, 'faster_rcnn')
-        #
-        # base_net_dir = os.path.join(pretrain_model_dir, self.base_network_name)
-
-        model_variables = slim.get_model_variables()
-        # restore weight from faster rcnn pretrain model
-        if is_pretrained:
-            # just restore weight of base net(resnet_50, resnet_v1_101) and rpn_net
-            if restore_from_rpn:
-                restore_variables= [var for var in model_variables if not var.name.startswith('Fast-RCNN')]
-                for var in restore_variables:
-                    print(var.name)
-                restorer = tf.compat.v1.train.Saver(restore_variables)
-            # restore all variables weight
-            else:
-                restorer = tf.train.Saver()
-            checkpoint_path = tf.compat.v1.train.latest_checkpoint(pretrained_model_dir)
-
-        # restore variable weight only from base_net(resnet_v1_50, resnet_v1_101) pretrain model
-        else:
-            ckpt_var_dict = {}
-            for var in model_variables:
-                if var.name.startswith(self.base_network_name):
-                    var_name_ckpt = var.op.name
-                    ckpt_var_dict[var_name_ckpt] = var
-            restore_variables = ckpt_var_dict
-            for key, item in restore_variables.items():
-                print("var_in_graph: ", item.name)
-                print("var_in_ckpt: ", key)
-
-            restorer = tf.compat.v1.train.Saver(restore_variables)
-            checkpoint_path = os.path.join(pretrained_model_dir, self.base_network_name + '.ckpt')
-            print("restore from pretrained_weighs in IMAGE_NET")
-
-        return restorer, checkpoint_path
 
     def losses(self):
         """
@@ -641,6 +561,66 @@ class FasterRCNN():
         tf.summary.scalar('LOSS/total_loss', total_loss)
 
         return total_loss
+
+    def get_restorer(self):
+        checkpoint_path = tf.train.latest_checkpoint(os.path.join(cfgs.TRAINED_CKPT, cfgs.VERSION))
+
+        if checkpoint_path != None:
+            if cfgs.RESTORE_FROM_RPN:
+                print('___restore from rpn___')
+                model_variables = slim.get_model_variables()
+                restore_variables = [var for var in model_variables if not var.name.startswith('FastRCNN_Head')] + \
+                                    [slim.get_or_create_global_step()]
+                for var in restore_variables:
+                    print(var.name)
+                restorer = tf.train.Saver(restore_variables)
+            else:
+                restorer = tf.train.Saver()
+            print("model restore from :", checkpoint_path)
+        else:
+
+            model_variables = slim.get_model_variables()
+            ckpt_var_dict = {}
+            for var in model_variables:
+                if var.name.startswith(self.base_network_name):
+                    var_name_ckpt = var.op.name
+                    ckpt_var_dict[var_name_ckpt] = var
+            restore_variables = ckpt_var_dict
+            for key, item in restore_variables.items():
+                print("var_in_graph: ", item.name)
+                print("var_in_ckpt: ", key)
+
+            restorer = tf.compat.v1.train.Saver(restore_variables)
+            checkpoint_path = os.path.join(cfgs.PRETRAINED_CKPT, self.base_network_name + '.ckpt')
+            print("model restore from pretrained mode, path is :", checkpoint_path)
+            print("restore from pretrained_weighs in IMAGE_NET")
+        return restorer, checkpoint_path
+
+
+    def get_gradients(self, optimizer, loss):
+        '''
+
+        :param optimizer:
+        :param loss:
+        :return:
+
+        return vars and grads that not be fixed
+        '''
+
+        return optimizer.compute_gradients(loss)
+
+    def enlarge_gradients_for_bias(self, gradients):
+
+        final_gradients = []
+        with tf.variable_scope("Gradient_Mult") as scope:
+            for grad, var in gradients:
+                scale = 1.0
+                if cfgs.MUTILPY_BIAS_GRADIENT and './biases' in var.name:
+                    scale = scale * cfgs.MUTILPY_BIAS_GRADIENT
+                if not np.allclose(scale, 1.0):
+                    grad = tf.multiply(grad, scale)
+                final_gradients.append((grad, var))
+        return final_gradients
 
 
     def training(self, total_loss, global_step):
@@ -678,8 +658,7 @@ class FasterRCNN():
     def faster_rcnn_arg_scope(self):
         with slim.arg_scope([slim.conv2d, slim.conv2d_in_plane, slim.conv2d_transpose, slim.separable_conv2d,
                              slim.fully_connected],
-                            weights_regularizer=slim.l2_regularizer((self.weight_decay)),
+                            weights_regularizer=slim.l2_regularizer((cfgs.WEIGHT_DECAY)),
                             biases_regularizer=tf.no_regularizer,
                             biases_initializer=tf.constant_initializer(0.0)) as sc:
             return sc
-
