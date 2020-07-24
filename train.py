@@ -119,11 +119,12 @@ def train():
         if not restorer is None:
             restorer.restore(sess, save_path=restore_ckpt)
             print('*' * 80 + '\nSuccessful restore model from {0}\n'.format(restore_ckpt) + '*' * 80)
-        model_variables = slim.get_model_variables()
+        # model_variables = slim.get_model_variables()
         # for var in model_variables:
         #     print(var.name, var.shape)
         # build summary write
-        summary_writer = tf.summary.FileWriter(cfgs.SUMMARY_PATH, graph=sess.graph)
+        summary_path = os.path.join(cfgs.SUMMARY_PATH, cfgs.VERSION)
+        summary_writer = tf.summary.FileWriter(summary_path, graph=sess.graph)
 
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess, coord)
@@ -165,7 +166,10 @@ def train():
                                 summary_writer.flush()
 
                     if (step > 0 and step % cfgs.SAVE_WEIGHTS_INTE == 0) or (step == cfgs.MAX_ITERATION - 1):
-                        save_ckpt = os.path.join(cfgs.TRAINED_CKPT, 'voc_' + str(globalStep) + 'model.ckpt')
+
+                        save_dir = os.path.join(cfgs.TRAINED_CKPT, cfgs.VERSION)
+                        makedir(save_dir)
+                        save_ckpt = os.path.join(save_dir, 'voc_' + str(globalStep) + 'model.ckpt')
                         saver.save(sess, save_ckpt)
                         print(' weights had been saved')
         except Exception as e:
