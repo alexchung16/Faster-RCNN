@@ -44,7 +44,7 @@ class ObjectInference():
         # expend dimension
         image_batch = tf.expand_dims(input=resize_img, axis=0)  # (1, None, None, 3)
 
-        self.detect_net.raw_input_data = image_batch
+        self.detect_net.images_batch = image_batch
         # img_shape = tf.shape(inputs_img)
         # load detect network
         detection_boxes, detection_scores, detection_category = self.detect_net.inference()
@@ -193,7 +193,7 @@ class ObjectInference():
 if __name__ == "__main__":
     base_network_name = 'resnet_v1_101'
     inference = ObjectInference(base_network_name=base_network_name,
-                                pretrain_model_dir=cfgs.MODEL_CKPT)
+                                pretrain_model_dir=cfgs.TRAINED_CKPT)
 
     inference.exucute_detect(image_path='./demos', save_path=cfgs.INFERENCE_SAVE_PATH)
 
