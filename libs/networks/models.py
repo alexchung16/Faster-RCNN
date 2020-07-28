@@ -588,7 +588,7 @@ class FasterRCNN(object):
                 restorer = tf.train.Saver(restore_variables)
             else:
                 restorer = tf.train.Saver()
-            print("model restore from :", checkpoint_path)
+            print("model restore from {0}".format(checkpoint_path))
         else:
 
             model_variables = slim.get_model_variables()
@@ -604,10 +604,10 @@ class FasterRCNN(object):
 
             restorer = tf.compat.v1.train.Saver(restore_variables)
             checkpoint_path = os.path.join(cfgs.PRETRAINED_CKPT, self.base_network_name + '.ckpt')
-            print("model restore from pretrained mode, path is :", checkpoint_path)
+            print("model restore from {0}".format(checkpoint_path))
             print("restore from pretrained_weighs in IMAGE_NET")
-        return restorer, checkpoint_path
 
+        return restorer, checkpoint_path
 
     def get_gradients(self, optimizer, loss):
         '''
