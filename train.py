@@ -149,7 +149,7 @@ def train():
                                          feed_dict=feed_dict)
 
                             end_time = time.time()
-                            print(""" {}: step{}\t\timage_name:{} |\t
+                            print(""" {}: step {}\t\timage_name:{} |\t
                                                  rpn_loc_loss:{} |\t rpn_cla_loss:{} |\t rpn_total_loss:{} |
                                                  fast_rcnn_loc_loss:{} |\t fast_rcnn_cla_loss:{} |\t fast_rcnn_total_loss:{} |
                                                  total_loss:{} |\t per_cost_time:{}s""" \
