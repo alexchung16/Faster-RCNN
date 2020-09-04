@@ -16,7 +16,7 @@ from libs.box_utils import show_box_in_tensor
 
 
 # origin_dataset_dir = '/media/alex/AC6A2BDB6A2BA0D6/alex_dataset/pascal_split/val'
-tfrecord_dir = '/media/alex/AC6A2BDB6A2BA0D6/alex_dataset/pascal_tfrecord'
+tfrecord_dir = '/media/alex/AC6A2BDB6A2BA0D6/alex_dataset/pascal_tfrecord/train'
 
 _R_MEAN = 123.68
 _G_MEAN = 116.78
