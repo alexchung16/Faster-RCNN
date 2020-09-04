@@ -67,7 +67,7 @@ GRADIENT_CLIPPING_BY_NORM = None   #10.0  if None, will not clip
 EPSILON = 1e-5
 MOMENTUM = 0.9
 LR = 0.001 # 0.001  # 0.0003
-DECAY_STEP = [50000, 70000]  # 50000, 70000
+DECAY_STEP = [70000, 10000]  # 50000, 70000
 MAX_ITERATION = 200000
 
 # -------------------------------------------- Data_preprocess_config
