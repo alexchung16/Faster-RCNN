@@ -238,17 +238,18 @@ def get_num_samples(record_dir):
     :param record_file:
     :return:
     """
-
-
     # check record file format
-
-    record_list = glob.glob(os.path.join(record_dir, '*.record'))
-
-
+    # record_list = glob.glob(os.path.join(self.record_dir, '*.record'))
+    file_pattern = os.path.join(record_dir, '*.record')
+    input_files = tf.io.gfile.glob(file_pattern)
     num_samples = 0
-    for record_file in record_list:
-        for record in tf_record_iterator(record_file):
-            num_samples += 1
+    print("counting number of sample, please waiting...")
+    # convert to dynamic mode
+    tf.enable_eager_execution()
+    for _ in tf.data.TFRecordDataset(input_files):
+        num_samples += 1
+    # recover to static mode
+    tf.disable_eager_execution()
     return num_samples
 
 
