@@ -29,7 +29,7 @@ SMRY_ITER = 100
 SAVE_WEIGHTS_INTE = 10000
 
 # TFRECORD_DIR = ROOT_PATH + '/data/tfrecord'
-TFRECORD_DIR = '/media/alex/AC6A2BDB6A2BA0D6/alex_dataset/pascal_tfrecord'
+TFRECORD_DIR = '/media/alex/AC6A2BDB6A2BA0D6/alex_dataset/pascal_tfrecord/train'
 SUMMARY_PATH = ROOT_PATH + '/outputs/summary'
 INFERENCE_SAVE_PATH = ROOT_PATH + '/outputs/inference_results'
 TEST_SAVE_PATH = ROOT_PATH + '/outputs/test_results'
@@ -67,8 +67,8 @@ GRADIENT_CLIPPING_BY_NORM = None   #10.0  if None, will not clip
 EPSILON = 1e-5
 MOMENTUM = 0.9
 LR = 0.001 # 0.001  # 0.0003
-DECAY_STEP = [70000, 10000]  # 50000, 70000
-MAX_ITERATION = 200000
+DECAY_STEP = [80000, 120000]  # 50000, 70000
+MAX_ITERATION = 250000
 
 # -------------------------------------------- Data_preprocess_config
 DATASET_NAME = 'pascal'  # 'ship', 'spacenet', 'pascal', 'coco'
