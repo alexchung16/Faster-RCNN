@@ -27,11 +27,11 @@ $ wget http://images.cocodataset.org/zips/val2017.zip
 
 ![acc](./docs/rpn_loss.png) |
 |:-------------------------:|
-Displayed  one-state Loss on Tensorboard | 
+Displayed one-state Loss on Tensorboard | 
 
 ![acc](./docs/fast_rcnn_loss.png) |
 |:-------------------------:|
-Displayed  two-stage Loss on Tensorboard | 
+Displayed two-stage Loss on Tensorboard | 
 
 ![acc](./docs/total_loss.png)      |  ![](./docs/learning_rate.png)
 :-------------------------:|:-------------------------:
@@ -39,7 +39,7 @@ Displayed Total Loss on Tensorboard |  Displayed Accuracy on Tensorboard
 
 ![acc](./docs/acc.png) |
 |:-------------------------:|
-Displayed  Accuracy on Tensorboard | 
+Displayed Accuracy on Tensorboard | 
 
 
 ## TODO
